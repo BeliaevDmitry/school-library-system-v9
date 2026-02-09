@@ -12,5 +12,19 @@ button { cursor: pointer; font-weight: 700; }
 .muted { color: #666; font-size: 12px; }
 
 pre { white-space: pre-wrap; background:#fff7f7; border:1px solid #f0c0c0; padding:10px; border-radius:10px; }
-
 .warn { background: #fff2cc; }
+
+.top-back {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #fff;
+  padding: 8px 0;
+  margin-bottom: 8px;
+  border-bottom: 1px solid #eee;
+}
+
+.top-back a {
+  display: inline-block;
+  text-decoration: none;
+}

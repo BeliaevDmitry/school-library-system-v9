@@ -7,6 +7,8 @@ import org.springframework.web.multipart.MultipartFile;
 import ru.school.library.entity.*;
 import ru.school.library.repo.*;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 @Service
@@ -65,11 +67,12 @@ public void importRegistry(MultipartFile file, String buildingCode) throws Excep
                     int grade = parseGrade(getStringByHeader(r, col, "параллель"));
                     String authors = getStringByHeader(r, col, "автор(-ы)");
                     String publisher = getStringByHeader(r, col, "издательство");
-                    Integer year = parseIntNullable(getStringByHeader(r, col, "год издания"));
+                    String yearRaw = getStringByHeader(r, col, "год издания");
                     String fpu = getStringByHeader(r, col, "№ фпу");
                     int total = parseInt(getStringByHeader(r, col, "общее кол-во экземпляров"));
                     int available = parseInt(getStringByHeader(r, col, "кол-во свободных экземпляров"));
                     int inUse = Math.max(0, total - available);
+                    List<Integer> years = parseYearCandidates(yearRaw);
 
                     Subject subject = subjects.findByNameIgnoreCase(subjectName)
                             .orElseGet(() -> {
@@ -78,42 +81,28 @@ public void importRegistry(MultipartFile file, String buildingCode) throws Excep
                                 return subjects.save(s);
                             });
 
-                    BookTitle bt = null;
-                    if (fpu != null && !fpu.isBlank()) {
-                        bt = bookTitles.findByExternalKeyAndGradeAndSubject_Id(fpu.trim(), grade, subject.getId()).orElse(null);
-                    }
-                    if (bt == null) {
-                        bt = new BookTitle();
-                        bt.setExternalKey(fpu == null ? null : fpu.trim());
-                        bt.setGrade(grade);
-                        bt.setSubject(subject);
-                        bt.setTitle(title);
-                        bt.setAuthors(authors);
-                        bt.setPublisher(publisher);
-                        bt.setYear(year);
-                        bt.setIsbn(null);
-                        bt = bookTitles.save(bt);
-                    } else {
-                        bt.setTitle(title);
-                        bt.setAuthors(authors);
-                        bt.setPublisher(publisher);
-                        bt.setYear(year);
-                        bookTitles.save(bt);
-                    }
+                    for (int i = 0; i < years.size(); i++) {
+                        Integer year = years.get(i);
+                        int totalPart = splitPart(total, years.size(), i);
+                        int availablePart = splitPart(available, years.size(), i);
+                        int inUsePart = Math.max(0, totalPart - availablePart);
 
-                    Stock st = stocks.findOne(building.getId(), bt.getId()).orElse(null);
-                    if (st == null) {
-                        st = new Stock();
-                        st.setBuilding(building);
-                        st.setBookTitle(bt);
-                        st.setTotal(0);
-                        st.setAvailable(0);
-                        st.setInUse(0);
+                        BookTitle bt = findOrCreateMeshTitle(fpu, grade, subject, title, authors, publisher, year, years.size() > 1);
+
+                        Stock st = stocks.findOne(building.getId(), bt.getId()).orElse(null);
+                        if (st == null) {
+                            st = new Stock();
+                            st.setBuilding(building);
+                            st.setBookTitle(bt);
+                            st.setTotal(0);
+                            st.setAvailable(0);
+                            st.setInUse(0);
+                        }
+                        st.setTotal(totalPart);
+                        st.setAvailable(availablePart);
+                        st.setInUse(inUsePart);
+                        stocks.save(st);
                     }
-                    st.setTotal(total);
-                    st.setAvailable(available);
-                    st.setInUse(inUse);
-                    stocks.save(st);
 
                     processed++;
                 } else {
@@ -196,7 +185,7 @@ private int findHeaderRow(Sheet sh) {
         Row r = sh.getRow(i);
         if (r == null) continue;
         String c0 = cellString(r,0).toLowerCase();
-        if (c0.equals("buildingcode")) return i;
+        if (c0.equals("buildingcode") || c0.contains("код корпуса")) return i;
 
         // МЭШ: строка с заголовками на русском
         boolean hasName = false, hasSubject = false, hasGrade = false;
@@ -254,6 +243,64 @@ private Integer parseIntNullable(String raw) {
     if (s.isBlank()) return null;
     return (int) Double.parseDouble(s.replace(",", "."));
 }
+
+
+private BookTitle findOrCreateMeshTitle(String fpu, int grade, Subject subject, String title, String authors, String publisher, Integer year, boolean splitByYears) {
+    String externalKey = fpu == null ? null : fpu.trim();
+    String effectiveKey = externalKey;
+    if (splitByYears && externalKey != null && !externalKey.isBlank() && year != null) {
+        effectiveKey = externalKey + "#" + year;
+    }
+    BookTitle bt = null;
+    if (effectiveKey != null && !effectiveKey.isBlank()) {
+        bt = bookTitles.findByExternalKeyAndGradeAndSubject_Id(effectiveKey, grade, subject.getId()).orElse(null);
+    }
+    if (bt == null) {
+        bt = new BookTitle();
+        bt.setExternalKey(effectiveKey);
+        bt.setGrade(grade);
+        bt.setSubject(subject);
+        bt.setTitle(title);
+        bt.setAuthors(authors);
+        bt.setPublisher(publisher);
+        bt.setYear(year);
+        bt.setIsbn(null);
+        return bookTitles.save(bt);
+    }
+    bt.setTitle(title);
+    bt.setAuthors(authors);
+    bt.setPublisher(publisher);
+    bt.setYear(year);
+    return bookTitles.save(bt);
+}
+
+private List<Integer> parseYearCandidates(String raw) {
+    if (raw == null || raw.isBlank()) {
+        List<Integer> single = new ArrayList<>();
+        single.add(null);
+        return single;
+    }
+    List<Integer> years = new ArrayList<>();
+    java.util.regex.Matcher m = java.util.regex.Pattern.compile("(19\\d{2}|20\\d{2})").matcher(raw);
+    while (m.find()) {
+        int y = Integer.parseInt(m.group(1));
+        if (!years.contains(y)) years.add(y);
+    }
+    if (years.isEmpty()) {
+        List<Integer> single = new ArrayList<>();
+        single.add(parseIntNullable(raw));
+        return single;
+    }
+    return years;
+}
+
+private int splitPart(int total, int parts, int idx) {
+    if (parts <= 1) return total;
+    int base = total / parts;
+    int remainder = Math.floorMod(total, parts);
+    return idx < remainder ? base + 1 : base;
+}
+
 
 
 
@@ -417,7 +464,8 @@ public void importClasses(MultipartFile file) throws Exception {
                 Building building = buildings.findByCode(buildingCode)
                         .orElseThrow(() -> new RuntimeException("Unknown building code: " + buildingCode));
 
-                ClassGroup cg = new ClassGroup();
+                ClassGroup cg = classes.findByBuilding_IdAndGradeAndLetterIgnoreCase(building.getId(), pc.grade, pc.letter)
+                        .orElseGet(ClassGroup::new);
                 cg.setBuilding(building);
                 cg.setGrade(pc.grade);
                 cg.setLetter(pc.letter);
@@ -434,10 +482,12 @@ public void importClasses(MultipartFile file) throws Exception {
                 Building building = buildings.findByCode(buildingCode)
                         .orElseThrow(() -> new RuntimeException("Unknown building code: " + buildingCode));
 
-                ClassGroup cg = new ClassGroup();
+                String normalizedLetter = letter == null ? "" : letter.trim().toUpperCase(Locale.ROOT);
+                ClassGroup cg = classes.findByBuilding_IdAndGradeAndLetterIgnoreCase(building.getId(), grade, normalizedLetter)
+                        .orElseGet(ClassGroup::new);
                 cg.setBuilding(building);
                 cg.setGrade(grade);
-                cg.setLetter(letter);
+                cg.setLetter(normalizedLetter);
                 cg.setStudents(students);
                 classes.save(cg);
             }
@@ -559,7 +609,8 @@ public void importFutureClasses(MultipartFile file, int academicYear) throws Exc
                     Building building = buildings.findByCode(buildingCode)
                             .orElseThrow(() -> new RuntimeException("Unknown building code: " + buildingCode));
 
-                    FutureClassGroup cg = new FutureClassGroup();
+                    FutureClassGroup cg = futureClasses.findByBuilding_IdAndAcademicYearAndGradeAndLetterIgnoreCase(building.getId(), academicYear, pc.grade, pc.letter)
+                            .orElseGet(FutureClassGroup::new);
                     cg.setBuilding(building);
                     cg.setAcademicYear(academicYear);
                     cg.setGrade(pc.grade);
@@ -576,11 +627,13 @@ public void importFutureClasses(MultipartFile file, int academicYear) throws Exc
                     Building building = buildings.findByCode(buildingCode)
                             .orElseThrow(() -> new RuntimeException("Unknown building code: " + buildingCode));
 
-                    FutureClassGroup cg = new FutureClassGroup();
+                    String normalizedLetter = letter == null ? "" : letter.trim().toUpperCase(Locale.ROOT);
+                    FutureClassGroup cg = futureClasses.findByBuilding_IdAndAcademicYearAndGradeAndLetterIgnoreCase(building.getId(), academicYear, grade, normalizedLetter)
+                            .orElseGet(FutureClassGroup::new);
                     cg.setBuilding(building);
                     cg.setAcademicYear(academicYear);
                     cg.setGrade(grade);
-                    cg.setLetter(letter);
+                    cg.setLetter(normalizedLetter);
                     cg.setStudents(students);
                     futureClasses.save(cg);
                 }

@@ -96,6 +96,22 @@ public class AdminController {
         return "redirect:/admin/import";
     }
 
+
+    @PostMapping("/buildings/{id}")
+    public String updateBuilding(@PathVariable Long id,
+                                 @RequestParam String name,
+                                 RedirectAttributes ra) {
+        try {
+            var b = buildings.findById(id).orElseThrow();
+            b.setName(name == null ? "" : name.trim());
+            buildings.save(b);
+            ra.addFlashAttribute("success", "Название корпуса обновлено");
+        } catch (Exception e) {
+            ra.addFlashAttribute("error", e.getMessage());
+        }
+        return "redirect:/admin/dashboard";
+    }
+
     @GetMapping("/reconciliation/{buildingId}")
     public String reconciliation(@PathVariable Long buildingId, Model model) {
         var b = buildings.findById(buildingId).orElseThrow();
