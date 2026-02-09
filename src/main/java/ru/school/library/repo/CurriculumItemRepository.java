@@ -1,0 +1,1 @@
+package ru.school.library.repo; import org.springframework.data.jpa.repository.JpaRepository; import ru.school.library.entity.CurriculumItem; import java.util.*; public interface CurriculumItemRepository extends JpaRepository<CurriculumItem,Long>{ List<CurriculumItem> findByGrade(int grade);} 

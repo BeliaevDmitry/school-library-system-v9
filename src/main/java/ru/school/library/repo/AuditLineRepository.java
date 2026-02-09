@@ -1,0 +1,1 @@
+package ru.school.library.repo; import org.springframework.data.jpa.repository.JpaRepository; import ru.school.library.entity.AuditLine; import java.util.*; public interface AuditLineRepository extends JpaRepository<AuditLine,Long>{ List<AuditLine> findByAuditSession_Id(Long auditSessionId);} 

@@ -1,0 +1,1 @@
+package ru.school.library.repo; import org.springframework.data.jpa.repository.JpaRepository; import ru.school.library.entity.AuditSession; import java.util.*; public interface AuditSessionRepository extends JpaRepository<AuditSession,Long>{ List<AuditSession> findByBuilding_IdOrderByCreatedAtDesc(Long buildingId);} 

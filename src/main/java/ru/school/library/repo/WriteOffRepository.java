@@ -1,0 +1,1 @@
+package ru.school.library.repo; import org.springframework.data.jpa.repository.JpaRepository; import ru.school.library.entity.WriteOff; import java.util.*; public interface WriteOffRepository extends JpaRepository<WriteOff,Long>{ List<WriteOff> findByBuilding_IdOrderByCreatedAtDesc(Long buildingId);} 

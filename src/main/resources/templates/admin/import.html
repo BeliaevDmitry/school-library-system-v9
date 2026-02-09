@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head><meta charset="UTF-8"/><title>Импорт</title><link rel="stylesheet" th:href="@{/css/app.css}"></head>
+<body>
+<div class="container">
+  <h2>Импорт Excel</h2>
+
+<div class="card" th:if="${error}">
+  <h3 style="margin-top:0">Ошибка</h3>
+  <pre th:text="${error}"></pre>
+</div>
+<div class="card" th:if="${success}">
+  <h3 style="margin-top:0">Готово</h3>
+  <p th:text="${success}"></p>
+</div>
+
+
+  <div class="card">
+    <h3>1) Реестр (поддерживает МЭШ)</h3>
+    <p class="muted">Формат A (шаблон): buildingCode | grade | subject | title | authors | year | isbn | total | available | inUse<br/>
+Формат B (реестр МЭШ): Название | Предмет | Параллель | Автор(-ы) | Издательство | Год издания | № ФПУ | Общее кол-во экземпляров | Кол-во свободных экземпляров<br/>
+    <a th:href="@{/admin/templates/registry.xlsx}">Скачать шаблон Excel</a></p>
+    <form method="post" th:action="@{/admin/import/registry}" enctype="multipart/form-data">
+      <label>Куда загрузить реестр</label>
+      <select name="buildingCode">
+        <option th:each="b : ${buildings}" th:value="${b.code}" th:text="${b.name + ' (код ' + b.code + ')'}"></option>
+      </select>
+      <p class="muted">Если это общий реестр МЭШ без корпуса — удобно выбирать <b>Центральный фонд (код 0)</b>, а затем делать перемещения.</p>
+      <input type="file" name="file" accept=".xlsx"/>
+      <button type="submit">Загрузить</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h3>2) Учебный план</h3>
+    <p class="muted">Колонки: grade | subject | isbn | perStudent<br/>
+    <a th:href="@{/admin/templates/curriculum.xlsx}">Скачать шаблон Excel</a></p>
+    <form method="post" th:action="@{/admin/import/curriculum}" enctype="multipart/form-data">
+      <input type="file" name="file" accept=".xlsx"/>
+      <button type="submit">Загрузить</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h3>3) Численность классов</h3>
+    <p class="muted">Формат A (шаблон): buildingCode | grade | letter | students<br/>
+Формат B (как в вашем файле): "Номер и буква класса" | students | корпус (например: 10-А | 29 | сп1)<br/>
+    <a th:href="@{/admin/templates/classes.xlsx}">Скачать шаблон Excel (формат A)</a></p>
+    <form method="post" th:action="@{/admin/import/classes}" enctype="multipart/form-data">
+      <input type="file" name="file" accept=".xlsx"/>
+      <button type="submit">Загрузить</button>
+    </form>
+  </div>
+
+  <a th:href="@{/admin/dashboard}">Назад</a>
+
+<div class="card">
+  <h3>1b) Старый реестр (закупки / суфф-шаблон)</h3>
+  <p class="muted">Поддерживается файл с колонками: Параллель | Наименование учебника | Предмет | Издательство | ... | Количество учебников.</p>
+  <form method="post" th:action="@{/admin/import/legacy-registry}" enctype="multipart/form-data">
+    <label>Куда загрузить</label>
+    <select name="buildingCode">
+      <option th:each="b : ${buildings}" th:value="${b.code}" th:text="${b.name + ' (код ' + b.code + ')'}"></option>
+    </select>
+    <input type="file" name="file" accept=".xlsx" required />
+    <button type="submit">Загрузить старый реестр</button>
+  </form>
+</div>
+
+
+<div class="card">
+  <h3>3b) Будущий контингент</h3>
+  <p class="muted">Загрузите численность на следующий учебный год. Поддерживаются форматы A и B (как для численности).<br/>
+    <a th:href="@{/admin/templates/future-classes.xlsx}">Скачать шаблон Excel (формат A)</a></p>
+  <form method="post" th:action="@{/admin/import/future-classes}" enctype="multipart/form-data">
+    <label>Учебный год (например 2026 = 2026/2027)</label>
+    <input type="number" name="academicYear" min="2000" max="2100" th:value="${T(java.time.Year).now().value + 1}" style="width:140px" required/>
+    <input type="file" name="file" accept=".xlsx" required />
+    <button type="submit">Загрузить будущий контингент</button>
+  </form>
+</div>
+</div>
+</body>
+</html>

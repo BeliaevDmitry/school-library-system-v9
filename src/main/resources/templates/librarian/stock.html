@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head><meta charset="UTF-8"/><title>Остатки</title><link rel="stylesheet" th:href="@{/css/app.css}"></head>
+<body>
+<div class="container">
+  <h2 th:text="'Остатки — ' + ${building.name}"></h2>
+
+  <div class="card" th:if="${error}">
+    <h3 style="margin-top:0">Ошибка</h3>
+    <pre th:text="${error}"></pre>
+  </div>
+  <div class="card" th:if="${success}">
+    <h3 style="margin-top:0">Готово</h3>
+    <p th:text="${success}"></p>
+  </div>
+
+  <p class="muted">
+    Поля <b>Выдано</b>, <b>В кабинетах</b> и <b>Примечание</b> заполняются библиотекарем для инвентаризации.
+    Проверка доступна на странице <a th:href="@{/librarian/inventory}">Инвентаризация</a>.
+  </p>
+
+  <table>
+    <thead>
+    <tr>
+      <th>Предмет</th><th>Класс</th><th>Учебник</th>
+      <th>Всего</th><th>Доступно</th><th>В использовании</th>
+      <th>Выдано</th><th>В кабинетах</th><th>Примечание</th><th></th>
+    </tr>
+    </thead>
+    <tbody>
+      <tr th:each="s : ${stocks}">
+        <td th:text="${s.bookTitle.subject.name}"></td>
+        <td th:text="${s.bookTitle.grade}"></td>
+        <td th:text="${s.bookTitle.title}"></td>
+        <td th:text="${s.total}"></td>
+        <td th:text="${s.available}"></td>
+        <td th:text="${s.inUse}"></td>
+        <td colspan="4">
+          <form th:action="@{'/librarian/stocks/' + ${s.id} + '/extra'}" method="post" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap">
+            <label class="muted">Выдано</label>
+            <input type="number" name="issuedToStudents" min="0" style="width:90px" th:value="${s.issuedToStudents}"/>
+            <label class="muted">В кабинетах</label>
+            <input type="number" name="inCabinets" min="0" style="width:90px" th:value="${s.inCabinets}"/>
+            <label class="muted">Примечание</label>
+            <input type="text" name="note" style="min-width:240px" th:value="${s.note}"/>
+            <button type="submit">Сохранить</button>
+          </form>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p><a th:href="@{/librarian/dashboard}">← Назад</a></p>
+</div>
+</body>
+</html>

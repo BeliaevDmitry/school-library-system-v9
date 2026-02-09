@@ -1,0 +1,1 @@
+package ru.school.library.repo; import org.springframework.data.jpa.repository.JpaRepository; import ru.school.library.entity.Subject; import java.util.*; public interface SubjectRepository extends JpaRepository<Subject,Long>{ Optional<Subject> findByNameIgnoreCase(String name);} 

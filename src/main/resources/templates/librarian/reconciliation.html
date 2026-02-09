@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head><meta charset="UTF-8"/><title>Сверка</title><link rel="stylesheet" th:href="@{/css/app.css}"></head>
+<body>
+<div class="container">
+  <h2 th:text="'Сверка — ' + ${building.name}"></h2>
+  <a th:href="@{/librarian/reconciliation.xlsx}">Скачать Excel</a>
+
+  <table>
+    <thead><tr><th>Параллель</th><th>Предмет</th><th>Учебник</th><th>Нужно</th><th>Есть</th><th>Дефицит</th></tr></thead>
+    <tbody>
+      <tr th:each="r : ${rows}">
+        <td th:text="${r.grade()}"></td>
+        <td th:text="${r.subject()}"></td>
+        <td th:text="${r.title()}"></td>
+        <td th:text="${r.needed()}"></td>
+        <td th:text="${r.available()}"></td>
+        <td th:text="${r.deficit()}" th:classappend="${r.deficit() > 0} ? 'bad' : 'good'"></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="grid">
+    <div class="card">
+      <h3>Итоги по предметам</h3>
+      <table>
+        <thead><tr><th>Предмет</th><th>Нужно</th><th>Есть</th><th>Дефицит</th></tr></thead>
+        <tbody>
+          <tr th:each="s : ${bySubject}">
+            <td th:text="${s.key()}"></td>
+            <td th:text="${s.needed()}"></td>
+            <td th:text="${s.available()}"></td>
+            <td th:text="${s.deficit()}" th:classappend="${s.deficit() > 0} ? 'bad' : 'good'"></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h3>Итоги по параллелям</h3>
+      <table>
+        <thead><tr><th>Параллель</th><th>Нужно</th><th>Есть</th><th>Дефицит</th></tr></thead>
+        <tbody>
+          <tr th:each="s : ${byGrade}">
+            <td th:text="${s.key()}"></td>
+            <td th:text="${s.needed()}"></td>
+            <td th:text="${s.available()}"></td>
+            <td th:text="${s.deficit()}" th:classappend="${s.deficit() > 0} ? 'bad' : 'good'"></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <a th:href="@{/librarian/dashboard}">Назад</a>
+</div>
+</body>
+</html>

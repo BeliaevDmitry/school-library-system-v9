@@ -1,0 +1,1 @@
+package ru.school.library.repo; import org.springframework.data.jpa.repository.JpaRepository; import ru.school.library.entity.Building; import java.util.*; public interface BuildingRepository extends JpaRepository<Building,Long>{ Optional<Building> findByCode(String code);} 

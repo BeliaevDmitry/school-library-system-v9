@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head><meta charset="UTF-8"/><title>Админ</title><link rel="stylesheet" th:href="@{/css/app.css}"></head>
+<body>
+<div class="container">
+  <h2>Админ-панель</h2>
+<p><a class="btn" th:href="@{/admin/planning}">Планирование закупки (будущий контингент)</a> <a class="btn" th:href="@{/admin/inventory}">Сводная инвентаризация</a> <a class="btn" th:href="@{/admin/classes}">Численность (редактирование)</a></p>
+  <div class="grid">
+    <div class="card">
+      <h3>Импорт данных</h3>
+      <a th:href="@{/admin/import}">Перейти к импорту</a>
+    </div>
+    <div class="card">
+      <h3>Сверка по корпусам</h3>
+      <ul>
+        <li th:each="b : ${buildings}">
+          <a th:href="@{'/admin/reconciliation/' + ${b.id}}"
+             th:text="${b.name + ' (код ' + b.code + ')'}"></a>
+        </li>
+      </ul>
+    </div>
+  </div>
+  <a th:href="@{/logout}">Выйти</a>
+</div>
+</body>
+</html>

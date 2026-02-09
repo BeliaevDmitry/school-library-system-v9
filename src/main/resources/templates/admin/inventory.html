@@ -1,0 +1,37 @@
+<!doctype html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="utf-8"/>
+  <title>Сводная инвентаризация</title>
+  <link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+<div class="container">
+  <h2>Сводная инвентаризация</h2>
+  <p class="muted">Проверка: total ?= available + выдано + в кабинетах. Несовпадения подсвечены.</p>
+  <div class="card">
+    <p th:text="${'Проблемных строк: ' + problems}"></p>
+    <table>
+      <tr>
+        <th>Корпус</th><th>Параллель</th><th>Предмет</th><th>Учебник</th>
+        <th>Total</th><th>Свободно</th><th>Выдано</th><th>В кабинетах</th><th>Ожидаемо</th><th>Разница</th><th>Примечание</th>
+      </tr>
+      <tr th:each="r : ${rows}" th:classappend="${r.diff != 0} ? 'warn' : ''">
+        <td th:text="${r.buildingName}"></td>
+        <td th:text="${r.grade}"></td>
+        <td th:text="${r.subject}"></td>
+        <td th:text="${r.title}"></td>
+        <td th:text="${r.total}"></td>
+        <td th:text="${r.available}"></td>
+        <td th:text="${r.issuedToStudents}"></td>
+        <td th:text="${r.inCabinets}"></td>
+        <td th:text="${r.expectedTotal}"></td>
+        <td th:text="${r.diff}"></td>
+        <td th:text="${r.note}"></td>
+      </tr>
+    </table>
+  </div>
+  <p><a th:href="@{/admin/dashboard}">← Назад</a></p>
+</div>
+</body>
+</html>

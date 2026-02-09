@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head><meta charset="UTF-8"/><title>Списание</title><link rel="stylesheet" th:href="@{/css/app.css}"></head>
+<body>
+<div class="container">
+  <h2 th:text="'Списание — ' + ${building.name}"></h2>
+
+  <form method="post" th:action="@{/librarian/writeoff}">
+    <label>Книга (остаток)</label>
+    <select name="stockId">
+      <option th:each="s : ${stocks}"
+              th:value="${s.id}"
+              th:text="${s.bookTitle.grade + ' кл — ' + s.bookTitle.subject.name + ' — ' + s.bookTitle.title + ' (доступно ' + s.available + ')'}"></option>
+    </select>
+
+    <label>Количество</label>
+    <input type="number" name="count" min="1" />
+
+    <label>Причина</label>
+    <input name="reason" placeholder="например: износ/утрата"/>
+
+    <button type="submit">Списать</button>
+  </form>
+
+  <a th:href="@{/librarian/dashboard}">Назад</a>
+</div>
+</body>
+</html>

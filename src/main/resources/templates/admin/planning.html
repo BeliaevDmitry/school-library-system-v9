@@ -1,0 +1,82 @@
+<!doctype html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="utf-8"/>
+  <title>Планирование закупки</title>
+  <link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+<div class="container">
+  <h2>Планирование закупки (будущий контингент)</h2>
+
+  <div class="card">
+    <form method="get" th:action="@{/admin/planning}">
+      <label>Учебный год (например 2026 = 2026/2027)</label>
+      <input type="number" name="academicYear" min="2000" max="2100" th:value="${academicYear}" style="width:140px"/>
+
+      <label>Корпус</label>
+      <select name="buildingId" required>
+        <option value="" disabled th:selected="${building == null}">Выберите корпус</option>
+        <option th:each="b : ${buildings}" th:value="${b.id}"
+                th:selected="${building != null and b.id == building.id}"
+                th:text="${b.name + ' (код ' + b.code + ')'}"></option>
+      </select>
+
+      <button type="submit">Рассчитать</button>
+      <a class="btn" th:if="${building != null}" th:href="@{/admin/planning/export.xlsx(buildingId=${building.id},academicYear=${academicYear})}">Скачать Excel</a>
+    </form>
+    <p class="muted">Расчёт: нужда = ученики(будущий контингент) × норма(учебный план). Дефицит = max(0, нужда − свободно).</p>
+  </div>
+
+  <div th:if="${building != null}">
+    <h3 th:text="${'Корпус: ' + building.name + ' (код ' + building.code + ')'}"></h3>
+
+    <div class="grid">
+      <div class="card">
+        <h3>Дефицит по предметам</h3>
+        <table>
+          <tr><th>Предмет</th><th>Дефицит</th></tr>
+          <tr th:each="e : ${bySubject}">
+            <td th:text="${e.key}"></td>
+            <td th:text="${e.value}"></td>
+          </tr>
+        </table>
+      </div>
+      <div class="card">
+        <h3>Дефицит по параллелям</h3>
+        <table>
+          <tr><th>Параллель</th><th>Дефицит</th></tr>
+          <tr th:each="e : ${byGrade}">
+            <td th:text="${e.key}"></td>
+            <td th:text="${e.value}"></td>
+          </tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Детализация</h3>
+      <table>
+        <tr>
+          <th>Параллель</th><th>Предмет</th><th>Учебник</th><th>ISBN/ключ</th>
+          <th>Норма</th><th>Ученики</th><th>Нужно</th><th>Есть (свободно)</th><th>Дефицит</th>
+        </tr>
+        <tr th:each="r : ${rows}">
+          <td th:text="${r.grade}"></td>
+          <td th:text="${r.subject}"></td>
+          <td th:text="${r.title}"></td>
+          <td th:text="${r.isbnOrKey}"></td>
+          <td th:text="${r.perStudent}"></td>
+          <td th:text="${r.students}"></td>
+          <td th:text="${r.needed}"></td>
+          <td th:text="${r.available}"></td>
+          <td th:text="${r.deficit}"></td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
+  <p><a th:href="@{/admin/dashboard}">← Назад</a></p>
+</div>
+</body>
+</html>

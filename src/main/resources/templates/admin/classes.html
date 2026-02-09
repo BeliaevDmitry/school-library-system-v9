@@ -1,0 +1,94 @@
+<!doctype html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="utf-8"/>
+  <title>Численность</title>
+  <link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+<div class="container">
+  <h2>Численность (текущий год)</h2>
+
+  <div class="card" th:if="${error}">
+    <h3 style="margin-top:0">Ошибка</h3>
+    <pre th:text="${error}"></pre>
+  </div>
+  <div class="card" th:if="${success}">
+    <h3 style="margin-top:0">Готово</h3>
+    <p th:text="${success}"></p>
+  </div>
+
+  <div class="card">
+    <form method="get" th:action="@{/admin/classes}">
+      <label>Корпус</label>
+      <select name="buildingId" required>
+        <option value="" disabled th:selected="${buildingId == null}">Выберите корпус</option>
+        <option th:each="b : ${buildings}" th:value="${b.id}"
+                th:selected="${buildingId != null and b.id == buildingId}"
+                th:text="${b.name + ' (код ' + b.code + ')'}"></option>
+      </select>
+      <button type="submit">Показать</button>
+      <a class="btn" th:href="@{/admin/classes/future}">Будущий контингент →</a> <a class="btn" th:href="@{/admin/classes/log}">История изменений</a>
+    </form>
+    <p class="muted">Админ может корректировать численность вручную. Библиотекари не имеют доступа.</p>
+  </div>
+
+  <div th:if="${buildingId != null}">
+    <div class="card">
+      <h3>Добавить / изменить класс</h3>
+      <form method="post" th:action="@{/admin/classes/save}">
+        <input type="hidden" name="buildingId" th:value="${buildingId}"/>
+        <label>Параллель</label>
+        <input type="number" name="grade" min="1" max="11" required style="width:100px"/>
+        <label>Буква</label>
+        <input type="text" name="letter" maxlength="5" required style="width:100px"/>
+        <label>Ученики</label>
+        <input type="number" name="students" min="0" required style="width:120px"/>
+        <button type="submit">Сохранить</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h3>Массовая правка</h3>
+      <form method="post" th:action="@{/admin/classes/bulk}">
+        <input type="hidden" name="buildingId" th:value="${buildingId}"/>
+        <label>Параллель (пусто = все)</label>
+        <input type="number" name="grade" min="1" max="11" style="width:120px"/>
+        <label>Delta (например +1 или -2)</label>
+        <input type="number" name="delta" required style="width:120px"/>
+        <label>Комментарий</label>
+        <input type="text" name="note" style="width:240px"/>
+        <button type="submit">Применить</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h3>Список классов</h3>
+      <table>
+        <tr><th>Класс</th><th>Ученики</th><th></th></tr>
+        <tr th:each="r : ${rows}">
+          <td th:text="${r.grade + '-' + r.letter}"></td>
+          <td>
+            <form method="post" th:action="@{/admin/classes/save}" style="display:flex; gap:8px; align-items:center">
+              <input type="hidden" name="buildingId" th:value="${buildingId}"/>
+              <input type="hidden" name="grade" th:value="${r.grade}"/>
+              <input type="hidden" name="letter" th:value="${r.letter}"/>
+              <input type="number" name="students" min="0" th:value="${r.students}" style="width:120px"/>
+              <input type="text" name="note" placeholder="комментарий" style="width:200px"/>
+              <button type="submit">Сохранить</button>
+            </form>
+          </td>
+          <td>
+            <form method="post" th:action="@{/admin/classes/{id}/delete(id=${r.id})}">
+              <button type="submit">Удалить</button>
+            </form>
+          </td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
+  <p><a th:href="@{/admin/dashboard}">← Назад</a></p>
+</div>
+</body>
+</html>

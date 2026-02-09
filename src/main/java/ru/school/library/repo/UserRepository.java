@@ -1,0 +1,1 @@
+package ru.school.library.repo; import org.springframework.data.jpa.repository.JpaRepository; import ru.school.library.entity.User; import java.util.*; public interface UserRepository extends JpaRepository<User,Long>{ Optional<User> findByUsername(String username);} 

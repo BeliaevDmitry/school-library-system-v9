@@ -1,0 +1,1 @@
+package ru.school.library.repo; import org.springframework.data.jpa.repository.JpaRepository; import ru.school.library.entity.Movement; import java.util.*; public interface MovementRepository extends JpaRepository<Movement,Long>{ List<Movement> findByFromBuilding_IdOrToBuilding_IdOrderByCreatedAtDesc(Long fromId, Long toId);} 
