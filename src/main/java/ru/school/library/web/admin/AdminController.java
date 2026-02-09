@@ -8,7 +8,9 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+import ru.school.library.dto.BuildingStockSummary;
 import ru.school.library.repo.BuildingRepository;
+import ru.school.library.repo.StockRepository;
 import ru.school.library.service.ExcelImportService;
 import ru.school.library.service.ReconciliationService;
 
@@ -18,12 +20,29 @@ import ru.school.library.service.ReconciliationService;
 public class AdminController {
 
     private final BuildingRepository buildings;
+    private final StockRepository stocks;
     private final ExcelImportService excel;
     private final ReconciliationService recon;
 
     @GetMapping("/dashboard")
     public String dashboard(Model model) {
-        model.addAttribute("buildings", buildings.findAll());
+        var bs = buildings.findAll();
+        model.addAttribute("buildings", bs);
+        long totalPositions = stocks.count();
+        long totalBooks = stocks.findAll().stream().mapToLong(s -> s.getTotal()).sum();
+        model.addAttribute("totalPositions", totalPositions);
+        model.addAttribute("totalBooks", totalBooks);
+        var byBuilding = bs.stream().map(b -> {
+            var list = stocks.findByBuilding_Id(b.getId());
+            long qty = list.stream().mapToLong(s -> s.getTotal()).sum();
+            return new BuildingStockSummary(
+                    b.getName(),
+                    b.getCode(),
+                    list.size(),
+                    qty
+            );
+        }).toList();
+        model.addAttribute("stockByBuilding", byBuilding);
         return "admin/dashboard";
     }
 

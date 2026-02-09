@@ -9,13 +9,13 @@
 <div class="container">
   <div class="top-back"><a th:href="@{/librarian/dashboard}">← Назад</a></div>
   <h2>Инвентаризация (мой корпус)</h2>
-  <p class="muted">Проверка: total ?= available + выдано + в кабинетах. Несовпадения подсвечены.</p>
+  <p class="muted">Проверка: всего ?= свободно + выдано + в кабинетах. Несовпадения подсвечены.</p>
   <div class="card">
     <p th:text="${'Проблемных строк: ' + problems}"></p>
     <table>
       <tr>
         <th>Параллель</th><th>Предмет</th><th>Учебник</th>
-        <th>Total</th><th>Свободно</th><th>Выдано</th><th>В кабинетах</th><th>Ожидаемо</th><th>Разница</th><th>Примечание</th>
+        <th>Всего</th><th>Свободно</th><th>Выдано</th><th>В кабинетах</th><th>Ожидаемо</th><th>Разница</th><th>Примечание</th>
       </tr>
       <tr th:each="r : ${rows}" th:classappend="${r.diff != 0} ? 'warn' : ''">
         <td th:text="${r.grade}"></td>
