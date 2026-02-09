@@ -28,24 +28,3 @@ pre { white-space: pre-wrap; background:#fff7f7; border:1px solid #f0c0c0; paddi
   display: inline-block;
   text-decoration: none;
 }
-
-
-.actions { display:flex; gap:8px; flex-wrap:wrap; margin: 10px 0; }
-.btn {
-  display:inline-block;
-  padding: 8px 12px;
-  border-radius: 10px;
-  border: 1px solid #dcdcdc;
-  background: #f7f7f7;
-  color: #222;
-  text-decoration: none;
-}
-.btn:hover { background:#efefef; }
-
-.form-grid {
-  display:grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 10px;
-}
-
-.form-grid .full { grid-column: 1 / -1; }
