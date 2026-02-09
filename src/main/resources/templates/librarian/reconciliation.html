@@ -3,6 +3,7 @@
 <head><meta charset="UTF-8"/><title>Сверка</title><link rel="stylesheet" th:href="@{/css/app.css}"></head>
 <body>
 <div class="container">
+  <div class="top-back"><a th:href="@{/librarian/dashboard}">← Назад</a></div>
   <h2 th:text="'Сверка — ' + ${building.name}"></h2>
   <a th:href="@{/librarian/reconciliation.xlsx}">Скачать Excel</a>
 
