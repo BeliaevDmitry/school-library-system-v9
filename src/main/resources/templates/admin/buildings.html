@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Корпуса</title>
+  <link rel="stylesheet" th:href="@{/css/app.css}">
+  <script th:src="@{/js/table-filters.js}" defer></script>
+</head>
+<body>
+<div class="container">
+  <div class="top-back"><a th:href="@{/admin/dashboard}">← Назад</a></div>
+  <h2>Редактирование названий корпусов</h2>
+
+  <div class="card" th:if="${error}">
+    <h3 style="margin-top:0">Ошибка</h3>
+    <pre th:text="${error}"></pre>
+  </div>
+  <div class="card" th:if="${success}">
+    <h3 style="margin-top:0">Готово</h3>
+    <p th:text="${success}"></p>
+  </div>
+
+  <div class="card">
+    <p class="muted">Изменения применяются сразу после нажатия «Сохранить».</p>
+    <table>
+      <tr><th>Код корпуса</th><th>Название</th><th></th></tr>
+      <tr th:each="b : ${buildings}">
+        <td th:text="${b.code}"></td>
+        <td>
+          <form method="post" th:action="@{'/admin/buildings/' + ${b.id}}" style="display:flex; gap:8px; align-items:center;">
+            <input name="name" th:value="${b.name}" required maxlength="200" style="min-width: 260px;"/>
+            <button type="submit">Сохранить</button>
+          </form>
+        </td>
+        <td></td>
+      </tr>
+    </table>
+  </div>
+</div>
+</body>
+</html>

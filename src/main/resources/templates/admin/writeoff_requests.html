@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Списания на подтверждение</title>
+  <link rel="stylesheet" th:href="@{/css/app.css}">
+  <script th:src="@{/js/table-filters.js}" defer></script>
+</head>
+<body>
+<div class="container">
+  <div class="top-back"><a th:href="@{/admin/dashboard}">← Назад</a></div>
+  <h2>Сводный список на списание (ожидает подтверждения)</h2>
+
+  <div class="card" th:if="${error}">
+    <h3 style="margin-top:0">Ошибка</h3>
+    <pre th:text="${error}"></pre>
+  </div>
+  <div class="card" th:if="${success}">
+    <h3 style="margin-top:0">Готово</h3>
+    <p th:text="${success}"></p>
+  </div>
+
+  <div class="card">
+    <form method="post" th:action="@{/admin/writeoff/approve-all}" style="display:flex; gap:8px; align-items:center; margin-bottom:12px;">
+      <input name="note" placeholder="общий комментарий для подтверждения" style="min-width: 320px;"/>
+      <button type="submit" onclick="return confirm('Подтвердить все заявки на списание?');">Подтвердить весь список</button>
+    </form>
+    <table>
+      <tr>
+        <th>Дата</th><th>Корпус</th><th>Книга</th><th>Кол-во</th><th>Причина</th><th>Библиотекарь</th><th>Действия</th>
+      </tr>
+      <tr th:if="${#lists.isEmpty(rows)}"><td colspan="7">Нет заявок на списание</td></tr>
+      <tr th:each="r : ${rows}">
+        <td th:text="${#temporals.format(r.createdAt, 'dd.MM.yyyy HH:mm')}"></td>
+        <td th:text="${r.building.name + ' (код ' + r.building.code + ')'}"></td>
+        <td th:text="${r.bookTitle.grade + ' кл — ' + r.bookTitle.subject.name + ' — ' + r.bookTitle.title}"></td>
+        <td th:text="${r.count}"></td>
+        <td th:text="${r.reason}"></td>
+        <td th:text="${r.createdBy.fullName != null ? r.createdBy.fullName : r.createdBy.username}"></td>
+        <td>
+          <form method="post" th:action="@{'/admin/writeoff/' + ${r.id} + '/approve'}" style="display:flex; gap:8px; margin-bottom:6px; align-items:center;">
+            <input name="note" placeholder="комментарий админа"/>
+            <button type="submit">Подтвердить</button>
+          </form>
+          <form method="post" th:action="@{'/admin/writeoff/' + ${r.id} + '/reject'}" style="display:flex; gap:8px; align-items:center;">
+            <input name="note" placeholder="причина отклонения"/>
+            <button type="submit">Отклонить</button>
+          </form>
+        </td>
+      </tr>
+    </table>
+  </div>
+</div>
+</body>
+</html>

@@ -135,8 +135,10 @@ public void importRegistry(MultipartFile file, String buildingCode) throws Excep
 
         boolean isMesh = col.containsKey("название") && col.containsKey("предмет") && col.containsKey("параллель");
 
-        Building building = buildings.findByCode(normalizeBuildingCode(buildingCode))
+        Building selectedBuilding = buildings.findByCode(normalizeBuildingCode(buildingCode))
                 .orElseThrow(() -> new RuntimeException("Unknown building code: " + buildingCode));
+        Building centralRegistry = buildings.findByCode("0").orElse(selectedBuilding);
+        Building targetRegistry = isMesh ? centralRegistry : selectedBuilding;
 
         java.util.List<String> errors = new java.util.ArrayList<>();
         int processed = 0;
@@ -177,10 +179,10 @@ public void importRegistry(MultipartFile file, String buildingCode) throws Excep
 
                         BookTitle bt = findOrCreateMeshTitle(fpu, grade, subject, title, authors, publisher, year, years.size() > 1);
 
-                        Stock st = stocks.findOne(building.getId(), bt.getId()).orElse(null);
+                        Stock st = stocks.findOne(targetRegistry.getId(), bt.getId()).orElse(null);
                         if (st == null) {
                             st = new Stock();
-                            st.setBuilding(building);
+                            st.setBuilding(targetRegistry);
                             st.setBookTitle(bt);
                             st.setTotal(0);
                             st.setAvailable(0);
@@ -367,61 +369,13 @@ private String normalizeNumber(String raw) {
             .trim();
 }
 
-
-private BookTitle findOrCreateMeshTitle(String fpu, int grade, Subject subject, String title, String authors, String publisher, Integer year, boolean splitByYears) {
-    String externalKey = fpu == null ? null : fpu.trim();
-    String effectiveKey = externalKey;
-    if (splitByYears && externalKey != null && !externalKey.isBlank() && year != null) {
-        effectiveKey = externalKey + "#" + year;
-    }
-    BookTitle bt = null;
-    if (effectiveKey != null && !effectiveKey.isBlank()) {
-        bt = bookTitles.findByExternalKeyAndGradeAndSubject_Id(effectiveKey, grade, subject.getId()).orElse(null);
-    }
-    if (bt == null) {
-        bt = new BookTitle();
-        bt.setExternalKey(effectiveKey);
-        bt.setGrade(grade);
-        bt.setSubject(subject);
-        bt.setTitle(title);
-        bt.setAuthors(authors);
-        bt.setPublisher(publisher);
-        bt.setYear(year);
-        bt.setIsbn(null);
-        return bookTitles.save(bt);
-    }
-    bt.setTitle(title);
-    bt.setAuthors(authors);
-    bt.setPublisher(publisher);
-    bt.setYear(year);
-    return bookTitles.save(bt);
-}
-
-private List<Integer> parseYearCandidates(String raw) {
-    if (raw == null || raw.isBlank()) {
-        List<Integer> single = new ArrayList<>();
-        single.add(null);
-        return single;
-    }
-    List<Integer> years = new ArrayList<>();
-    java.util.regex.Matcher m = java.util.regex.Pattern.compile("(19\\d{2}|20\\d{2})").matcher(raw);
-    while (m.find()) {
-        int y = Integer.parseInt(m.group(1));
-        if (!years.contains(y)) years.add(y);
-    }
-    if (years.isEmpty()) {
-        List<Integer> single = new ArrayList<>();
-        single.add(parseIntNullable(raw));
-        return single;
-    }
-    return years;
-}
-
-private int splitPart(int total, int parts, int idx) {
-    if (parts <= 1) return total;
-    int base = total / parts;
-    int remainder = Math.floorMod(total, parts);
-    return idx < remainder ? base + 1 : base;
+private String normalizeNumber(String raw) {
+    if (raw == null) return "";
+    return raw
+            .replace('\u00A0', ' ')
+            .replace(" ", "")
+            .replace(",", ".")
+            .trim();
 }
 
 
@@ -481,6 +435,121 @@ private int splitPart(int total, int parts, int idx) {
     return idx < remainder ? base + 1 : base;
 }
 
+
+private BookTitle findOrCreateMeshTitle(String fpu, int grade, Subject subject, String title, String authors, String publisher, Integer year, boolean splitByYears) {
+    String externalKey = fpu == null ? null : fpu.trim();
+    String effectiveKey = externalKey;
+    if (splitByYears && externalKey != null && !externalKey.isBlank() && year != null) {
+        effectiveKey = externalKey + "#" + year;
+    }
+    BookTitle bt = null;
+    if (effectiveKey != null && !effectiveKey.isBlank()) {
+        bt = bookTitles.findByExternalKeyAndGradeAndSubject_Id(effectiveKey, grade, subject.getId()).orElse(null);
+    }
+    if (bt == null) {
+        bt = new BookTitle();
+        bt.setExternalKey(effectiveKey);
+        bt.setGrade(grade);
+        bt.setSubject(subject);
+        bt.setTitle(title);
+        bt.setAuthors(authors);
+        bt.setPublisher(publisher);
+        bt.setYear(year);
+        bt.setIsbn(null);
+        return bookTitles.save(bt);
+    }
+    bt.setTitle(title);
+    bt.setAuthors(authors);
+    bt.setPublisher(publisher);
+    bt.setYear(year);
+    return bookTitles.save(bt);
+}
+
+private List<Integer> parseYearCandidates(String raw) {
+    if (raw == null || raw.isBlank()) {
+        List<Integer> single = new ArrayList<>();
+        single.add(null);
+        return single;
+    }
+    List<Integer> years = new ArrayList<>();
+    java.util.regex.Matcher m = java.util.regex.Pattern.compile("(19\\d{2}|20\\d{2})").matcher(raw);
+    while (m.find()) {
+        int y = Integer.parseInt(m.group(1));
+        if (!years.contains(y)) years.add(y);
+    }
+    if (years.isEmpty()) {
+        List<Integer> single = new ArrayList<>();
+        single.add(parseIntNullable(raw));
+        return single;
+    }
+    return years;
+}
+
+private int splitPart(int total, int parts, int idx) {
+    if (parts <= 1) return total;
+    int base = total / parts;
+    int remainder = Math.floorMod(total, parts);
+    return idx < remainder ? base + 1 : base;
+}
+
+
+
+
+private BookTitle findOrCreateMeshTitle(String fpu, int grade, Subject subject, String title, String authors, String publisher, Integer year, boolean splitByYears) {
+    String externalKey = fpu == null ? null : fpu.trim();
+    String effectiveKey = externalKey;
+    if (splitByYears && externalKey != null && !externalKey.isBlank() && year != null) {
+        effectiveKey = externalKey + "#" + year;
+    }
+    BookTitle bt = null;
+    if (effectiveKey != null && !effectiveKey.isBlank()) {
+        bt = bookTitles.findByExternalKeyAndGradeAndSubject_Id(effectiveKey, grade, subject.getId()).orElse(null);
+    }
+    if (bt == null) {
+        bt = new BookTitle();
+        bt.setExternalKey(effectiveKey);
+        bt.setGrade(grade);
+        bt.setSubject(subject);
+        bt.setTitle(title);
+        bt.setAuthors(authors);
+        bt.setPublisher(publisher);
+        bt.setYear(year);
+        bt.setIsbn(null);
+        return bookTitles.save(bt);
+    }
+    bt.setTitle(title);
+    bt.setAuthors(authors);
+    bt.setPublisher(publisher);
+    bt.setYear(year);
+    return bookTitles.save(bt);
+}
+
+private List<Integer> parseYearCandidates(String raw) {
+    if (raw == null || raw.isBlank()) {
+        List<Integer> single = new ArrayList<>();
+        single.add(null);
+        return single;
+    }
+    List<Integer> years = new ArrayList<>();
+    java.util.regex.Matcher m = java.util.regex.Pattern.compile("(19\\d{2}|20\\d{2})").matcher(raw);
+    while (m.find()) {
+        int y = Integer.parseInt(m.group(1));
+        if (!years.contains(y)) years.add(y);
+    }
+    if (years.isEmpty()) {
+        List<Integer> single = new ArrayList<>();
+        single.add(parseIntNullable(raw));
+        return single;
+    }
+    return years;
+}
+
+private int splitPart(int total, int parts, int idx) {
+    if (parts <= 1) return total;
+    int base = total / parts;
+    int remainder = Math.floorMod(total, parts);
+    return idx < remainder ? base + 1 : base;
+}
 
 
 
@@ -504,8 +573,9 @@ public void importLegacyRegistry(MultipartFile file, String buildingCode) throws
         }
         if (headerRowIdx < 0) throw new RuntimeException("Не найден заголовок старого реестра (ожидал: 'Параллель:' и 'Наименование учебника:')");
 
-        Building building = buildings.findByCode(normalizeBuildingCode(buildingCode))
+        Building selectedBuilding = buildings.findByCode(normalizeBuildingCode(buildingCode))
                 .orElseThrow(() -> new RuntimeException("Unknown building code: " + buildingCode));
+        Building suufRegistry = buildings.findByCode("0").orElse(selectedBuilding);
 
         java.util.List<String> errors = new java.util.ArrayList<>();
         int processed = 0;
@@ -553,10 +623,10 @@ public void importLegacyRegistry(MultipartFile file, String buildingCode) throws
                     bookTitles.save(bt);
                 }
 
-                Stock st = stocks.findOne(building.getId(), bt.getId()).orElse(null);
+                Stock st = stocks.findOne(suufRegistry.getId(), bt.getId()).orElse(null);
                 if (st == null) {
                     st = new Stock();
-                    st.setBuilding(building);
+                    st.setBuilding(suufRegistry);
                     st.setBookTitle(bt);
                     st.setTotal(0);
                     st.setAvailable(0);

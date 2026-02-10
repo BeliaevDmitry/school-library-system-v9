@@ -52,6 +52,12 @@ public class AdminController {
         return "admin/import";
     }
 
+    @GetMapping("/buildings")
+    public String buildingsPage(Model model) {
+        model.addAttribute("buildings", buildings.findAll());
+        return "admin/buildings";
+    }
+
     @PostMapping("/import/registry")
     public String importRegistry(@RequestParam("file") MultipartFile file,
                                  @RequestParam("buildingCode") String buildingCode,
@@ -131,13 +137,17 @@ public class AdminController {
                                  RedirectAttributes ra) {
         try {
             var b = buildings.findById(id).orElseThrow();
-            b.setName(name == null ? "" : name.trim());
+            String normalized = name == null ? "" : name.trim();
+            if (normalized.isBlank()) {
+                throw new RuntimeException("Название корпуса не может быть пустым");
+            }
+            b.setName(normalized);
             buildings.save(b);
             ra.addFlashAttribute("success", "Название корпуса обновлено");
         } catch (Exception e) {
             ra.addFlashAttribute("error", e.getMessage());
         }
-        return "redirect:/admin/dashboard";
+        return "redirect:/admin/buildings";
     }
 
     @GetMapping("/reconciliation/{buildingId}")

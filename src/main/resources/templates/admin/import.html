@@ -26,7 +26,7 @@
       <select name="buildingCode">
         <option th:each="b : ${buildings}" th:value="${b.code}" th:text="${b.name + ' (код ' + b.code + ')'}"></option>
       </select>
-      <p class="muted">Если это общий реестр МЭШ без корпуса — удобно выбирать <b>Центральный фонд (код 0)</b>, а затем делать перемещения.</p>
+      <p class="muted">Выгрузка МЭШ сохраняется в <b>основной реестр</b> (центральный фонд, код 0), независимо от выбранного корпуса.</p>
       <input type="file" name="file" accept=".xlsx"/>
       <button type="submit">Загрузить</button>
     </form>
@@ -57,7 +57,7 @@
 
 <div class="card">
   <h3>1b) Старый реестр (закупки / суфф-шаблон)</h3>
-  <p class="muted">Поддерживается файл с колонками: Параллель | Наименование учебника | Предмет | Издательство | ... | Количество учебников.</p>
+  <p class="muted">Поддерживается файл с колонками: Параллель | Наименование учебника | Предмет | Издательство | ... | Количество учебников. Данные сохраняются как <b>реестр СУУФ</b> (центральный фонд, код 0).</p>
   <form method="post" th:action="@{/admin/import/legacy-registry}" enctype="multipart/form-data">
     <label>Куда загрузить</label>
     <select name="buildingCode">
