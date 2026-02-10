@@ -49,6 +49,15 @@
         </li>
       </ul>
     </div>
+
+    <div class="card">
+      <h3>Названия корпусов</h3>
+      <form method="post" th:each="b : ${buildings}" th:action="@{'/admin/buildings/' + ${b.id}}" style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
+        <span class="muted" th:text="'Код ' + ${b.code}"></span>
+        <input name="name" th:value="${b.name}" required/>
+        <button type="submit">Сохранить</button>
+      </form>
+    </div>
   </div>
   <a th:href="@{/logout}">Выйти</a>
 </div>

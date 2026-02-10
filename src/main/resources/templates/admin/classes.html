@@ -49,6 +49,17 @@
   <div th:if="${buildingId != null}">
 
     <div class="card">
+      <h3>Годовой перевод классов</h3>
+      <p class="muted">Все классы переводятся на ступень выше с сохранением литеры в будущий контингент. Текущий год не изменяется, 11 классы в следующий год не переносятся.</p>
+      <form method="post" th:action="@{/admin/classes/promote}" onsubmit="return confirm('Выполнить годовой перевод классов?');">
+        <input type="hidden" name="buildingId" th:value="${buildingId}"/>
+        <label>Учебный год (начало)</label>
+        <input type="number" name="academicYear" min="2000" max="2100" th:value="${T(java.time.Year).now().getValue() + 1}" style="width:140px"/>
+        <button type="submit">Перевести все классы на год вперёд</button>
+      </form>
+    </div>
+
+    <div class="card">
       <h3>Добавить / изменить класс</h3>
       <form method="post" th:action="@{/admin/classes/save}">
         <input type="hidden" name="buildingId" th:value="${buildingId}"/>

@@ -369,6 +369,131 @@ private String normalizeNumber(String raw) {
             .trim();
 }
 
+private String normalizeNumber(String raw) {
+    if (raw == null) return "";
+    return raw
+            .replace('\u00A0', ' ')
+            .replace(" ", "")
+            .replace(",", ".")
+            .trim();
+}
+
+
+private BookTitle findOrCreateMeshTitle(String fpu, int grade, Subject subject, String title, String authors, String publisher, Integer year, boolean splitByYears) {
+    String externalKey = fpu == null ? null : fpu.trim();
+    String effectiveKey = externalKey;
+    if (splitByYears && externalKey != null && !externalKey.isBlank() && year != null) {
+        effectiveKey = externalKey + "#" + year;
+    }
+    BookTitle bt = null;
+    if (effectiveKey != null && !effectiveKey.isBlank()) {
+        bt = bookTitles.findByExternalKeyAndGradeAndSubject_Id(effectiveKey, grade, subject.getId()).orElse(null);
+    }
+    if (bt == null) {
+        bt = new BookTitle();
+        bt.setExternalKey(effectiveKey);
+        bt.setGrade(grade);
+        bt.setSubject(subject);
+        bt.setTitle(title);
+        bt.setAuthors(authors);
+        bt.setPublisher(publisher);
+        bt.setYear(year);
+        bt.setIsbn(null);
+        return bookTitles.save(bt);
+    }
+    bt.setTitle(title);
+    bt.setAuthors(authors);
+    bt.setPublisher(publisher);
+    bt.setYear(year);
+    return bookTitles.save(bt);
+}
+
+private List<Integer> parseYearCandidates(String raw) {
+    if (raw == null || raw.isBlank()) {
+        List<Integer> single = new ArrayList<>();
+        single.add(null);
+        return single;
+    }
+    List<Integer> years = new ArrayList<>();
+    java.util.regex.Matcher m = java.util.regex.Pattern.compile("(19\\d{2}|20\\d{2})").matcher(raw);
+    while (m.find()) {
+        int y = Integer.parseInt(m.group(1));
+        if (!years.contains(y)) years.add(y);
+    }
+    if (years.isEmpty()) {
+        List<Integer> single = new ArrayList<>();
+        single.add(parseIntNullable(raw));
+        return single;
+    }
+    return years;
+}
+
+private int splitPart(int total, int parts, int idx) {
+    if (parts <= 1) return total;
+    int base = total / parts;
+    int remainder = Math.floorMod(total, parts);
+    return idx < remainder ? base + 1 : base;
+}
+
+
+private BookTitle findOrCreateMeshTitle(String fpu, int grade, Subject subject, String title, String authors, String publisher, Integer year, boolean splitByYears) {
+    String externalKey = fpu == null ? null : fpu.trim();
+    String effectiveKey = externalKey;
+    if (splitByYears && externalKey != null && !externalKey.isBlank() && year != null) {
+        effectiveKey = externalKey + "#" + year;
+    }
+    BookTitle bt = null;
+    if (effectiveKey != null && !effectiveKey.isBlank()) {
+        bt = bookTitles.findByExternalKeyAndGradeAndSubject_Id(effectiveKey, grade, subject.getId()).orElse(null);
+    }
+    if (bt == null) {
+        bt = new BookTitle();
+        bt.setExternalKey(effectiveKey);
+        bt.setGrade(grade);
+        bt.setSubject(subject);
+        bt.setTitle(title);
+        bt.setAuthors(authors);
+        bt.setPublisher(publisher);
+        bt.setYear(year);
+        bt.setIsbn(null);
+        return bookTitles.save(bt);
+    }
+    bt.setTitle(title);
+    bt.setAuthors(authors);
+    bt.setPublisher(publisher);
+    bt.setYear(year);
+    return bookTitles.save(bt);
+}
+
+private List<Integer> parseYearCandidates(String raw) {
+    if (raw == null || raw.isBlank()) {
+        List<Integer> single = new ArrayList<>();
+        single.add(null);
+        return single;
+    }
+    List<Integer> years = new ArrayList<>();
+    java.util.regex.Matcher m = java.util.regex.Pattern.compile("(19\\d{2}|20\\d{2})").matcher(raw);
+    while (m.find()) {
+        int y = Integer.parseInt(m.group(1));
+        if (!years.contains(y)) years.add(y);
+    }
+    if (years.isEmpty()) {
+        List<Integer> single = new ArrayList<>();
+        single.add(parseIntNullable(raw));
+        return single;
+    }
+    return years;
+}
+
+private int splitPart(int total, int parts, int idx) {
+    if (parts <= 1) return total;
+    int base = total / parts;
+    int remainder = Math.floorMod(total, parts);
+    return idx < remainder ? base + 1 : base;
+}
+
+
+
 
 private BookTitle findOrCreateMeshTitle(String fpu, int grade, Subject subject, String title, String authors, String publisher, Integer year, boolean splitByYears) {
     String externalKey = fpu == null ? null : fpu.trim();
