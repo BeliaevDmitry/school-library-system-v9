@@ -27,6 +27,13 @@ public class Stock {
     @Column(nullable = false)
     private int inUse;
 
+    // Отдельные срезы наличия по источникам
+    @Column(nullable = false, columnDefinition = "integer default 0")
+    private int meshTotal;
+
+    @Column(nullable = false, columnDefinition = "integer default 0")
+    private int suufTotal;
+
     // Для инвентаризации/аудита (заполняет библиотекарь)
     private int issuedToStudents;
     private int inCabinets;

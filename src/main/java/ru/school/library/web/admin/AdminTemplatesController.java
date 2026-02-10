@@ -18,7 +18,7 @@ public class AdminTemplatesController {
     public ResponseEntity<byte[]> registryTemplate() throws Exception {
         return okXlsx("template_registry.xlsx", workbookWithHeader(
                 "Реестр",
-                new String[]{"buildingCode","grade","subject","title","authors","year","isbn","total","available","inUse"}
+                new String[]{"Код корпуса","Параллель","Предмет","Название","Авторы","Год издания","ISBN","Всего","Свободно","В использовании"}
         ));
     }
 
@@ -26,7 +26,7 @@ public class AdminTemplatesController {
     public ResponseEntity<byte[]> curriculumTemplate() throws Exception {
         return okXlsx("template_curriculum.xlsx", workbookWithHeader(
                 "Учебный план",
-                new String[]{"grade","subject","isbn","perStudent"}
+                new String[]{"Параллель","Предмет","ISBN","На 1 ученика"}
         ));
     }
 
@@ -34,7 +34,7 @@ public class AdminTemplatesController {
     public ResponseEntity<byte[]> classesTemplate() throws Exception {
         return okXlsx("template_classes.xlsx", workbookWithHeader(
                 "Численность",
-                new String[]{"buildingCode","grade","letter","students"}
+                new String[]{"Код корпуса","Параллель","Буква","Учеников"}
         ));
     }
 
@@ -42,7 +42,7 @@ public class AdminTemplatesController {
     public ResponseEntity<byte[]> futureClassesTemplate() throws Exception {
         return okXlsx("template_future_classes.xlsx", workbookWithHeader(
                 "Будущий контингент",
-                new String[]{"buildingCode","grade","letter","students"}
+                new String[]{"Код корпуса","Параллель","Буква","Учеников"}
         ));
     }
 

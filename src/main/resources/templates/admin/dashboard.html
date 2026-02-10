@@ -1,10 +1,38 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
-<head><meta charset="UTF-8"/><title>Админ</title><link rel="stylesheet" th:href="@{/css/app.css}"></head>
+<head><meta charset="UTF-8"/><title>Админ</title><link rel="stylesheet" th:href="@{/css/app.css}"><script th:src="@{/js/table-filters.js}" defer></script></head>
 <body>
 <div class="container">
+  <div class="top-back"><a href="#" onclick="history.back(); return false;">← Назад</a></div>
   <h2>Админ-панель</h2>
-<p><a class="btn" th:href="@{/admin/planning}">Планирование закупки (будущий контингент)</a> <a class="btn" th:href="@{/admin/inventory}">Сводная инвентаризация</a> <a class="btn" th:href="@{/admin/classes}">Численность (редактирование)</a></p>
+
+  <div class="card" th:if="${error}">
+    <h3 style="margin-top:0">Ошибка</h3>
+    <pre th:text="${error}"></pre>
+  </div>
+  <div class="card" th:if="${success}">
+    <h3 style="margin-top:0">Готово</h3>
+    <p th:text="${success}"></p>
+  </div>
+
+  <div class="actions">
+    <a class="btn" th:href="@{/admin/planning}">Планирование закупки (будущий контингент)</a>
+    <a class="btn" th:href="@{/admin/inventory}">Сводная инвентаризация</a>
+    <a class="btn" th:href="@{/admin/classes}">Численность (редактирование)</a>
+  </div>
+  <div class="card">
+    <h3>Сводка фонда</h3>
+    <p><b>Всего позиций:</b> <span th:text="${totalPositions}"></span></p>
+    <p><b>Всего экземпляров:</b> <span th:text="${totalBooks}"></span></p>
+    <table>
+      <tr><th>Корпус</th><th>Позиции</th><th>Экземпляры</th></tr>
+      <tr th:each="r : ${stockByBuilding}">
+        <td th:text="${r.name + ' (код ' + r.code + ')'}"></td>
+        <td th:text="${r.positions}"></td>
+        <td th:text="${r.books}"></td>
+      </tr>
+    </table>
+  </div>
   <div class="grid">
     <div class="card">
       <h3>Импорт данных</h3>
@@ -18,6 +46,15 @@
              th:text="${b.name + ' (код ' + b.code + ')'}"></a>
         </li>
       </ul>
+    </div>
+
+    <div class="card">
+      <h3>Названия корпусов</h3>
+      <form method="post" th:each="b : ${buildings}" th:action="@{'/admin/buildings/' + ${b.id}}" style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
+        <span class="muted" th:text="'Код ' + ${b.code}"></span>
+        <input name="name" th:value="${b.name}" required/>
+        <button type="submit">Сохранить</button>
+      </form>
     </div>
   </div>
   <a th:href="@{/logout}">Выйти</a>

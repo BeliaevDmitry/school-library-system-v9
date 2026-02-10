@@ -2,11 +2,14 @@ package ru.school.library.service;
 
 import lombok.RequiredArgsConstructor;
 import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import ru.school.library.entity.*;
 import ru.school.library.repo.*;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 @Service
@@ -19,6 +22,93 @@ public class ExcelImportService {
     private final CurriculumItemRepository curriculum;
     private final ClassGroupRepository classes;
     private final FutureClassGroupRepository futureClasses;
+
+    public void importLibrarianStock(MultipartFile file, Long buildingId) throws Exception {
+        try (Workbook wb = WorkbookFactory.create(file.getInputStream())) {
+            Sheet sh = wb.getSheetAt(0);
+            Building building = buildings.findById(buildingId)
+                    .orElseThrow(() -> new RuntimeException("Корпус не найден"));
+
+            int headerRowIdx = findLibrarianHeaderRow(sh);
+            if (headerRowIdx < 0) {
+                throw new RuntimeException("Не найден заголовок шаблона остатков библиотекаря");
+            }
+
+            Row header = sh.getRow(headerRowIdx);
+            java.util.Map<String, Integer> col = new java.util.HashMap<>();
+            for (Cell cell : header) {
+                String h = cell.getStringCellValue();
+                if (h != null) col.put(h.trim().toLowerCase(), cell.getColumnIndex());
+            }
+
+            java.util.List<String> errors = new java.util.ArrayList<>();
+            int processed = 0;
+            for (int rIdx = headerRowIdx + 1; rIdx <= sh.getLastRowNum(); rIdx++) {
+                Row r = sh.getRow(rIdx);
+                if (r == null) continue;
+                try {
+                    String subjectName = getStringByAnyHeader(r, col, "предмет", "subject");
+                    int grade = parseInt(getStringByAnyHeader(r, col, "параллель", "grade"));
+                    String title = getStringByAnyHeader(r, col, "название", "title");
+                    String authors = getStringByAnyHeader(r, col, "авторы", "authors");
+                    String publisher = getStringByAnyHeader(r, col, "издательство", "publisher");
+                    Integer year = parseIntNullable(getStringByAnyHeader(r, col, "год издания", "year"));
+                    String isbn = getStringByAnyHeader(r, col, "isbn");
+                    int total = parseInt(getStringByAnyHeader(r, col, "всего", "total"));
+                    int available = parseInt(getStringByAnyHeader(r, col, "свободно", "available"));
+                    int inUse = parseInt(getStringByAnyHeader(r, col, "в использовании", "inuse"));
+
+                    if ((title == null || title.isBlank()) && (subjectName == null || subjectName.isBlank())) {
+                        continue;
+                    }
+
+                    Subject subject = subjects.findByNameIgnoreCase(subjectName)
+                            .orElseGet(() -> {
+                                Subject s = new Subject();
+                                s.setName(subjectName);
+                                return subjects.save(s);
+                            });
+
+                    BookTitle bt = null;
+                    if (isbn != null && !isbn.isBlank()) {
+                        bt = bookTitles.findByIsbnAndGradeAndSubject_Id(isbn.trim(), grade, subject.getId()).orElse(null);
+                    }
+                    if (bt == null) {
+                        bt = bookTitles.findByTitleIgnoreCaseAndGradeAndSubject_Id(title, grade, subject.getId()).orElse(null);
+                    }
+                    if (bt == null) {
+                        bt = new BookTitle();
+                        bt.setGrade(grade);
+                        bt.setSubject(subject);
+                    }
+                    bt.setTitle(title);
+                    bt.setAuthors(authors);
+                    bt.setPublisher(publisher);
+                    bt.setYear(year);
+                    bt.setIsbn(isbn == null || isbn.isBlank() ? null : isbn.trim());
+                    bt = bookTitles.save(bt);
+
+                    Stock st = stocks.findOne(building.getId(), bt.getId()).orElseGet(Stock::new);
+                    st.setBuilding(building);
+                    st.setBookTitle(bt);
+                    st.setTotal(Math.max(0, total));
+                    st.setAvailable(Math.max(0, available));
+                    st.setInUse(Math.max(0, inUse));
+                    // Это инвентаризационные остатки от библиотекаря, а не импорт официальных
+                    // срезов МЭШ/СУУФ. Не перезаписываем source-поля meshTotal/suufTotal.
+                    stocks.save(st);
+                    processed++;
+                } catch (Exception ex) {
+                    errors.add("Строка " + (rIdx + 1) + ": " + ex.getMessage());
+                    if (errors.size() >= 30) break;
+                }
+            }
+
+            if (!errors.isEmpty()) {
+                throw new RuntimeException("Импорт остатков завершён с ошибками. Обработано строк: " + processed + ". Примеры:\n" + String.join("\n", errors));
+            }
+        }
+    }
 
 // Реестр: buildingCode | grade | subject | title | authors | year | isbn | total | available | inUse
     // Реестр: поддерживаем 2 формата
@@ -65,11 +155,12 @@ public void importRegistry(MultipartFile file, String buildingCode) throws Excep
                     int grade = parseGrade(getStringByHeader(r, col, "параллель"));
                     String authors = getStringByHeader(r, col, "автор(-ы)");
                     String publisher = getStringByHeader(r, col, "издательство");
-                    Integer year = parseIntNullable(getStringByHeader(r, col, "год издания"));
+                    String yearRaw = getStringByHeader(r, col, "год издания");
                     String fpu = getStringByHeader(r, col, "№ фпу");
                     int total = parseInt(getStringByHeader(r, col, "общее кол-во экземпляров"));
                     int available = parseInt(getStringByHeader(r, col, "кол-во свободных экземпляров"));
                     int inUse = Math.max(0, total - available);
+                    List<Integer> years = parseYearCandidates(yearRaw);
 
                     Subject subject = subjects.findByNameIgnoreCase(subjectName)
                             .orElseGet(() -> {
@@ -78,42 +169,29 @@ public void importRegistry(MultipartFile file, String buildingCode) throws Excep
                                 return subjects.save(s);
                             });
 
-                    BookTitle bt = null;
-                    if (fpu != null && !fpu.isBlank()) {
-                        bt = bookTitles.findByExternalKeyAndGradeAndSubject_Id(fpu.trim(), grade, subject.getId()).orElse(null);
-                    }
-                    if (bt == null) {
-                        bt = new BookTitle();
-                        bt.setExternalKey(fpu == null ? null : fpu.trim());
-                        bt.setGrade(grade);
-                        bt.setSubject(subject);
-                        bt.setTitle(title);
-                        bt.setAuthors(authors);
-                        bt.setPublisher(publisher);
-                        bt.setYear(year);
-                        bt.setIsbn(null);
-                        bt = bookTitles.save(bt);
-                    } else {
-                        bt.setTitle(title);
-                        bt.setAuthors(authors);
-                        bt.setPublisher(publisher);
-                        bt.setYear(year);
-                        bookTitles.save(bt);
-                    }
+                    for (int i = 0; i < years.size(); i++) {
+                        Integer year = years.get(i);
+                        int totalPart = splitPart(total, years.size(), i);
+                        int availablePart = splitPart(available, years.size(), i);
+                        int inUsePart = Math.max(0, totalPart - availablePart);
 
-                    Stock st = stocks.findOne(building.getId(), bt.getId()).orElse(null);
-                    if (st == null) {
-                        st = new Stock();
-                        st.setBuilding(building);
-                        st.setBookTitle(bt);
-                        st.setTotal(0);
-                        st.setAvailable(0);
-                        st.setInUse(0);
+                        BookTitle bt = findOrCreateMeshTitle(fpu, grade, subject, title, authors, publisher, year, years.size() > 1);
+
+                        Stock st = stocks.findOne(building.getId(), bt.getId()).orElse(null);
+                        if (st == null) {
+                            st = new Stock();
+                            st.setBuilding(building);
+                            st.setBookTitle(bt);
+                            st.setTotal(0);
+                            st.setAvailable(0);
+                            st.setInUse(0);
+                        }
+                        st.setTotal(totalPart);
+                        st.setAvailable(availablePart);
+                        st.setInUse(inUsePart);
+                        st.setMeshTotal(totalPart);
+                        stocks.save(st);
                     }
-                    st.setTotal(total);
-                    st.setAvailable(available);
-                    st.setInUse(inUse);
-                    stocks.save(st);
 
                     processed++;
                 } else {
@@ -174,6 +252,7 @@ public void importRegistry(MultipartFile file, String buildingCode) throws Excep
                     st.setTotal(total);
                     st.setAvailable(available);
                     st.setInUse(inUse);
+                    st.setMeshTotal(total);
                     stocks.save(st);
 
                     processed++;
@@ -196,7 +275,7 @@ private int findHeaderRow(Sheet sh) {
         Row r = sh.getRow(i);
         if (r == null) continue;
         String c0 = cellString(r,0).toLowerCase();
-        if (c0.equals("buildingcode")) return i;
+        if (c0.equals("buildingcode") || c0.contains("код корпуса")) return i;
 
         // МЭШ: строка с заголовками на русском
         boolean hasName = false, hasSubject = false, hasGrade = false;
@@ -215,6 +294,30 @@ private String getStringByHeader(Row r, java.util.Map<String,Integer> col, Strin
     Integer idx = col.get(headerRu.toLowerCase());
     if (idx == null) return "";
     return cellString(r, idx);
+}
+
+private String getStringByAnyHeader(Row r, java.util.Map<String,Integer> col, String... headers) {
+    for (String h : headers) {
+        Integer idx = col.get(h.toLowerCase());
+        if (idx != null) return cellString(r, idx);
+    }
+    return "";
+}
+
+private int findLibrarianHeaderRow(Sheet sh) {
+    for (int i = 0; i <= Math.min(30, sh.getLastRowNum()); i++) {
+        Row r = sh.getRow(i);
+        if (r == null) continue;
+        boolean hasTitle = false;
+        boolean hasSubject = false;
+        for (int c = 0; c < 20; c++) {
+            String v = cellString(r, c).toLowerCase();
+            if (v.equals("название") || v.equals("title")) hasTitle = true;
+            if (v.equals("предмет") || v.equals("subject")) hasSubject = true;
+        }
+        if (hasTitle && hasSubject) return i;
+    }
+    return -1;
 }
 
 private String cellString(Row r, int idx) {
@@ -243,17 +346,84 @@ private int parseGrade(String raw) {
 
 private int parseInt(String raw) {
     if (raw == null) return 0;
-    String s = raw.trim();
+    String s = normalizeNumber(raw);
     if (s.isBlank()) return 0;
-    return (int) Double.parseDouble(s.replace(",", "."));
+    return (int) Double.parseDouble(s);
 }
 
 private Integer parseIntNullable(String raw) {
     if (raw == null) return null;
-    String s = raw.trim();
+    String s = normalizeNumber(raw);
     if (s.isBlank()) return null;
-    return (int) Double.parseDouble(s.replace(",", "."));
+    return (int) Double.parseDouble(s);
 }
+
+private String normalizeNumber(String raw) {
+    if (raw == null) return "";
+    return raw
+            .replace('\u00A0', ' ')
+            .replace(" ", "")
+            .replace(",", ".")
+            .trim();
+}
+
+
+private BookTitle findOrCreateMeshTitle(String fpu, int grade, Subject subject, String title, String authors, String publisher, Integer year, boolean splitByYears) {
+    String externalKey = fpu == null ? null : fpu.trim();
+    String effectiveKey = externalKey;
+    if (splitByYears && externalKey != null && !externalKey.isBlank() && year != null) {
+        effectiveKey = externalKey + "#" + year;
+    }
+    BookTitle bt = null;
+    if (effectiveKey != null && !effectiveKey.isBlank()) {
+        bt = bookTitles.findByExternalKeyAndGradeAndSubject_Id(effectiveKey, grade, subject.getId()).orElse(null);
+    }
+    if (bt == null) {
+        bt = new BookTitle();
+        bt.setExternalKey(effectiveKey);
+        bt.setGrade(grade);
+        bt.setSubject(subject);
+        bt.setTitle(title);
+        bt.setAuthors(authors);
+        bt.setPublisher(publisher);
+        bt.setYear(year);
+        bt.setIsbn(null);
+        return bookTitles.save(bt);
+    }
+    bt.setTitle(title);
+    bt.setAuthors(authors);
+    bt.setPublisher(publisher);
+    bt.setYear(year);
+    return bookTitles.save(bt);
+}
+
+private List<Integer> parseYearCandidates(String raw) {
+    if (raw == null || raw.isBlank()) {
+        List<Integer> single = new ArrayList<>();
+        single.add(null);
+        return single;
+    }
+    List<Integer> years = new ArrayList<>();
+    java.util.regex.Matcher m = java.util.regex.Pattern.compile("(19\\d{2}|20\\d{2})").matcher(raw);
+    while (m.find()) {
+        int y = Integer.parseInt(m.group(1));
+        if (!years.contains(y)) years.add(y);
+    }
+    if (years.isEmpty()) {
+        List<Integer> single = new ArrayList<>();
+        single.add(parseIntNullable(raw));
+        return single;
+    }
+    return years;
+}
+
+private int splitPart(int total, int parts, int idx) {
+    if (parts <= 1) return total;
+    int base = total / parts;
+    int remainder = Math.floorMod(total, parts);
+    return idx < remainder ? base + 1 : base;
+}
+
 
 
 
@@ -337,6 +507,7 @@ public void importLegacyRegistry(MultipartFile file, String buildingCode) throws
                 st.setTotal(total);
                 st.setAvailable(available);
                 st.setInUse(inUse);
+                st.setSuufTotal(total);
                 stocks.save(st);
 
                 processed++;
@@ -351,6 +522,70 @@ public void importLegacyRegistry(MultipartFile file, String buildingCode) throws
         }
     }
 }
+
+public byte[] convertLegacyToMesh(MultipartFile file, String buildingCode) throws Exception {
+    try (Workbook src = WorkbookFactory.create(file.getInputStream()); XSSFWorkbook outWb = new XSSFWorkbook()) {
+        Sheet sh = src.getSheetAt(0);
+
+        int headerRowIdx = -1;
+        for (int i = 0; i <= Math.min(30, sh.getLastRowNum()); i++) {
+            Row r = sh.getRow(i);
+            if (r == null) continue;
+            String c0 = cellString(r,0).toLowerCase();
+            String c1 = cellString(r,1).toLowerCase();
+            if (c0.contains("паралл") && c1.contains("наимен")) { headerRowIdx = i; break; }
+        }
+        if (headerRowIdx < 0) throw new RuntimeException("Не найден заголовок старого реестра для конвертации");
+
+        Building building = buildings.findByCode(normalizeBuildingCode(buildingCode))
+                .orElseThrow(() -> new RuntimeException("Unknown building code: " + buildingCode));
+
+        var outSh = outWb.createSheet("Реестр МЭШ (из СУУФ)");
+        String[] cols = {
+                "Название", "Предмет", "Параллель", "Автор(-ы)", "Издательство", "Год издания", "№ ФПУ",
+                "Общее кол-во экземпляров", "Кол-во свободных экземпляров", "Код корпуса", "Источник"
+        };
+        Row h = outSh.createRow(0);
+        for (int i = 0; i < cols.length; i++) {
+            h.createCell(i).setCellValue(cols[i]);
+            outSh.setColumnWidth(i, Math.max(12, cols[i].length() + 2) * 256);
+        }
+
+        int outR = 1;
+        for (int rIdx = headerRowIdx + 1; rIdx <= sh.getLastRowNum(); rIdx++) {
+            Row r = sh.getRow(rIdx);
+            if (r == null) continue;
+
+            String gradeRaw = cellString(r,0);
+            String title = cellString(r,1);
+            String subject = cellString(r,2);
+            String publisher = cellString(r,3);
+            String qtyRaw = cellString(r,7);
+
+            if ((title == null || title.isBlank()) && (gradeRaw == null || gradeRaw.isBlank())) continue;
+
+            int grade = parseGrade(gradeRaw);
+            int total = parseInt(qtyRaw);
+            Row o = outSh.createRow(outR++);
+            o.createCell(0).setCellValue(title == null ? "" : title);
+            o.createCell(1).setCellValue(subject == null ? "" : subject);
+            o.createCell(2).setCellValue(grade);
+            o.createCell(3).setCellValue("");
+            o.createCell(4).setCellValue(publisher == null ? "" : publisher);
+            o.createCell(5).setCellValue("");
+            o.createCell(6).setCellValue("");
+            o.createCell(7).setCellValue(total);
+            o.createCell(8).setCellValue(total);
+            o.createCell(9).setCellValue(building.getCode());
+            o.createCell(10).setCellValue("СУУФ");
+        }
+
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        outWb.write(out);
+        return out.toByteArray();
+    }
+}
+
 public void importCurriculum(MultipartFile file) throws Exception {
         try (Workbook wb = WorkbookFactory.create(file.getInputStream())) {
             Sheet sh = wb.getSheetAt(0);
@@ -417,7 +652,8 @@ public void importClasses(MultipartFile file) throws Exception {
                 Building building = buildings.findByCode(buildingCode)
                         .orElseThrow(() -> new RuntimeException("Unknown building code: " + buildingCode));
 
-                ClassGroup cg = new ClassGroup();
+                ClassGroup cg = classes.findByBuilding_IdAndGradeAndLetterIgnoreCase(building.getId(), pc.grade, pc.letter)
+                        .orElseGet(ClassGroup::new);
                 cg.setBuilding(building);
                 cg.setGrade(pc.grade);
                 cg.setLetter(pc.letter);
@@ -434,10 +670,12 @@ public void importClasses(MultipartFile file) throws Exception {
                 Building building = buildings.findByCode(buildingCode)
                         .orElseThrow(() -> new RuntimeException("Unknown building code: " + buildingCode));
 
-                ClassGroup cg = new ClassGroup();
+                String normalizedLetter = letter == null ? "" : letter.trim().toUpperCase(Locale.ROOT);
+                ClassGroup cg = classes.findByBuilding_IdAndGradeAndLetterIgnoreCase(building.getId(), grade, normalizedLetter)
+                        .orElseGet(ClassGroup::new);
                 cg.setBuilding(building);
                 cg.setGrade(grade);
-                cg.setLetter(letter);
+                cg.setLetter(normalizedLetter);
                 cg.setStudents(students);
                 classes.save(cg);
             }
@@ -559,7 +797,8 @@ public void importFutureClasses(MultipartFile file, int academicYear) throws Exc
                     Building building = buildings.findByCode(buildingCode)
                             .orElseThrow(() -> new RuntimeException("Unknown building code: " + buildingCode));
 
-                    FutureClassGroup cg = new FutureClassGroup();
+                    FutureClassGroup cg = futureClasses.findByBuilding_IdAndAcademicYearAndGradeAndLetterIgnoreCase(building.getId(), academicYear, pc.grade, pc.letter)
+                            .orElseGet(FutureClassGroup::new);
                     cg.setBuilding(building);
                     cg.setAcademicYear(academicYear);
                     cg.setGrade(pc.grade);
@@ -576,11 +815,13 @@ public void importFutureClasses(MultipartFile file, int academicYear) throws Exc
                     Building building = buildings.findByCode(buildingCode)
                             .orElseThrow(() -> new RuntimeException("Unknown building code: " + buildingCode));
 
-                    FutureClassGroup cg = new FutureClassGroup();
+                    String normalizedLetter = letter == null ? "" : letter.trim().toUpperCase(Locale.ROOT);
+                    FutureClassGroup cg = futureClasses.findByBuilding_IdAndAcademicYearAndGradeAndLetterIgnoreCase(building.getId(), academicYear, grade, normalizedLetter)
+                            .orElseGet(FutureClassGroup::new);
                     cg.setBuilding(building);
                     cg.setAcademicYear(academicYear);
                     cg.setGrade(grade);
-                    cg.setLetter(letter);
+                    cg.setLetter(normalizedLetter);
                     cg.setStudents(students);
                     futureClasses.save(cg);
                 }

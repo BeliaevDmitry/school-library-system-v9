@@ -4,9 +4,10 @@
   <meta charset="utf-8"/>
   <title>Численность</title>
   <link rel="stylesheet" th:href="@{/css/app.css}">
-</head>
+<script th:src="@{/js/table-filters.js}" defer></script></head>
 <body>
 <div class="container">
+  <div class="top-back"><a th:href="@{/admin/dashboard}">← Назад</a></div>
   <h2>Численность (текущий год)</h2>
 
   <div class="card" th:if="${error}">
@@ -35,6 +36,17 @@
 
   <div th:if="${buildingId != null}">
     <div class="card">
+      <h3>Годовой перевод классов</h3>
+      <p class="muted">Все классы переводятся на ступень выше с сохранением литеры в будущий контингент. Текущий год не изменяется, 11 классы в следующий год не переносятся.</p>
+      <form method="post" th:action="@{/admin/classes/promote}" onsubmit="return confirm('Выполнить годовой перевод классов?');">
+        <input type="hidden" name="buildingId" th:value="${buildingId}"/>
+        <label>Учебный год (начало)</label>
+        <input type="number" name="academicYear" min="2000" max="2100" th:value="${T(java.time.Year).now().getValue() + 1}" style="width:140px"/>
+        <button type="submit">Перевести все классы на год вперёд</button>
+      </form>
+    </div>
+
+    <div class="card">
       <h3>Добавить / изменить класс</h3>
       <form method="post" th:action="@{/admin/classes/save}">
         <input type="hidden" name="buildingId" th:value="${buildingId}"/>
@@ -48,19 +60,6 @@
       </form>
     </div>
 
-    <div class="card">
-      <h3>Массовая правка</h3>
-      <form method="post" th:action="@{/admin/classes/bulk}">
-        <input type="hidden" name="buildingId" th:value="${buildingId}"/>
-        <label>Параллель (пусто = все)</label>
-        <input type="number" name="grade" min="1" max="11" style="width:120px"/>
-        <label>Delta (например +1 или -2)</label>
-        <input type="number" name="delta" required style="width:120px"/>
-        <label>Комментарий</label>
-        <input type="text" name="note" style="width:240px"/>
-        <button type="submit">Применить</button>
-      </form>
-    </div>
 
     <div class="card">
       <h3>Список классов</h3>

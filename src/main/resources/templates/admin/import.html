@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
-<head><meta charset="UTF-8"/><title>Импорт</title><link rel="stylesheet" th:href="@{/css/app.css}"></head>
+<head><meta charset="UTF-8"/><title>Импорт</title><link rel="stylesheet" th:href="@{/css/app.css}"><script th:src="@{/js/table-filters.js}" defer></script></head>
 <body>
 <div class="container">
+  <div class="top-back"><a th:href="@{/admin/dashboard}">← Назад</a></div>
   <h2>Импорт Excel</h2>
 
 <div class="card" th:if="${error}">
@@ -64,6 +65,17 @@
     </select>
     <input type="file" name="file" accept=".xlsx" required />
     <button type="submit">Загрузить старый реестр</button>
+  </form>
+
+  <h4>Конвертер СУУФ → МЭШ</h4>
+  <p class="muted">Преобразует файл СУУФ в формат МЭШ (Excel), чтобы проверить/доработать и загрузить как реестр МЭШ.</p>
+  <form method="post" th:action="@{/admin/import/legacy-to-mesh}" enctype="multipart/form-data">
+    <label>Корпус для кода в выгрузке</label>
+    <select name="buildingCode">
+      <option th:each="b : ${buildings}" th:value="${b.code}" th:text="${b.name + ' (код ' + b.code + ')'}"></option>
+    </select>
+    <input type="file" name="file" accept=".xlsx" required />
+    <button type="submit">Скачать конвертированный файл МЭШ</button>
   </form>
 </div>
 

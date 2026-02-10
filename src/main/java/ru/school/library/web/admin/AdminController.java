@@ -8,7 +8,9 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+import ru.school.library.dto.BuildingStockSummary;
 import ru.school.library.repo.BuildingRepository;
+import ru.school.library.repo.StockRepository;
 import ru.school.library.service.ExcelImportService;
 import ru.school.library.service.ReconciliationService;
 
@@ -18,12 +20,29 @@ import ru.school.library.service.ReconciliationService;
 public class AdminController {
 
     private final BuildingRepository buildings;
+    private final StockRepository stocks;
     private final ExcelImportService excel;
     private final ReconciliationService recon;
 
     @GetMapping("/dashboard")
     public String dashboard(Model model) {
-        model.addAttribute("buildings", buildings.findAll());
+        var bs = buildings.findAll();
+        model.addAttribute("buildings", bs);
+        long totalPositions = stocks.count();
+        long totalBooks = stocks.findAll().stream().mapToLong(s -> s.getTotal()).sum();
+        model.addAttribute("totalPositions", totalPositions);
+        model.addAttribute("totalBooks", totalBooks);
+        var byBuilding = bs.stream().map(b -> {
+            var list = stocks.findByBuilding_Id(b.getId());
+            long qty = list.stream().mapToLong(s -> s.getTotal()).sum();
+            return new BuildingStockSummary(
+                    b.getName(),
+                    b.getCode(),
+                    list.size(),
+                    qty
+            );
+        }).toList();
+        model.addAttribute("stockByBuilding", byBuilding);
         return "admin/dashboard";
     }
 
@@ -57,6 +76,15 @@ public class AdminController {
             ra.addFlashAttribute("error", e.getMessage());
         }
         return "redirect:/admin/import";
+    }
+
+    @PostMapping("/import/legacy-to-mesh")
+    public ResponseEntity<byte[]> convertLegacyToMesh(@RequestParam("file") MultipartFile file,
+                                                      @RequestParam("buildingCode") String buildingCode) throws Exception {
+        byte[] bytes = excel.convertLegacyToMesh(file, buildingCode);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=suuf_to_mesh.xlsx")
+                .body(bytes);
     }
 
     @PostMapping("/import/curriculum")
@@ -94,6 +122,22 @@ public class AdminController {
             ra.addFlashAttribute("error", e.getMessage());
         }
         return "redirect:/admin/import";
+    }
+
+
+    @PostMapping("/buildings/{id}")
+    public String updateBuilding(@PathVariable Long id,
+                                 @RequestParam String name,
+                                 RedirectAttributes ra) {
+        try {
+            var b = buildings.findById(id).orElseThrow();
+            b.setName(name == null ? "" : name.trim());
+            buildings.save(b);
+            ra.addFlashAttribute("success", "Название корпуса обновлено");
+        } catch (Exception e) {
+            ra.addFlashAttribute("error", e.getMessage());
+        }
+        return "redirect:/admin/dashboard";
     }
 
     @GetMapping("/reconciliation/{buildingId}")
