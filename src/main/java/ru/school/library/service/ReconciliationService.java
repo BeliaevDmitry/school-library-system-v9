@@ -37,6 +37,9 @@ public class ReconciliationService {
             int needed = students * item.getPerStudent();
             int available = stocks.findAvailable(buildingId, item.getBookTitle().getId()).orElse(0);
             int deficit = Math.max(0, needed - available);
+            var st = stocks.findOne(buildingId, item.getBookTitle().getId()).orElse(null);
+            int suufTotal = st == null ? 0 : st.getSuufTotal();
+            int meshTotal = st == null ? 0 : st.getMeshTotal();
             rows.add(new ReconRow(
                     buildingCode,
                     item.getGrade(),
@@ -44,7 +47,10 @@ public class ReconciliationService {
                     item.getBookTitle().getTitle(),
                     needed,
                     available,
-                    deficit
+                    deficit,
+                    suufTotal,
+                    meshTotal,
+                    item.getBookTitle() != null && item.getBookTitle().isApprovedByOrder()
             ));
         }
         return rows;
@@ -58,7 +64,9 @@ public class ReconciliationService {
                     int needed = e.getValue().stream().mapToInt(ReconRow::needed).sum();
                     int available = e.getValue().stream().mapToInt(ReconRow::available).sum();
                     int deficit = e.getValue().stream().mapToInt(ReconRow::deficit).sum();
-                    return new SummaryRow(e.getKey(), needed, available, deficit);
+                    int suufTotal = e.getValue().stream().mapToInt(ReconRow::suufTotal).sum();
+                    int meshTotal = e.getValue().stream().mapToInt(ReconRow::meshTotal).sum();
+                    return new SummaryRow(e.getKey(), needed, available, deficit, suufTotal, meshTotal);
                 })
                 .sorted(Comparator.comparing(SummaryRow::key))
                 .toList();
@@ -68,7 +76,7 @@ public class ReconciliationService {
         try (var wb = new XSSFWorkbook()) {
             var sheet = wb.createSheet("Сверка " + buildingCode);
             var header = sheet.createRow(0);
-            String[] cols = {"Корпус","Параллель","Предмет","Учебник","Нужно","Есть","Дефицит"};
+            String[] cols = {"Корпус","Параллель","Предмет","Учебник","Нужно","Есть","Дефицит","СУУФ","МЭШ","Разрешён приказом"};
             for (int i=0;i<cols.length;i++) header.createCell(i).setCellValue(cols[i]);
 
             int r = 1;
@@ -81,13 +89,16 @@ public class ReconciliationService {
                 x.createCell(4).setCellValue(row.needed());
                 x.createCell(5).setCellValue(row.available());
                 x.createCell(6).setCellValue(row.deficit());
+                x.createCell(7).setCellValue(row.suufTotal());
+                x.createCell(8).setCellValue(row.meshTotal());
+                x.createCell(9).setCellValue(row.approvedByOrder() ? "Да" : "Нет");
             }
 
             // Итоги по предметам
             var subj = summarize(rows, ReconRow::subject);
             var s2 = wb.createSheet("Итоги по предметам");
             var h2 = s2.createRow(0);
-            String[] c2 = {"Предмет","Нужно","Есть","Дефицит"};
+            String[] c2 = {"Предмет","Нужно","Есть","Дефицит","СУУФ","МЭШ"};
             for (int i=0;i<c2.length;i++) h2.createCell(i).setCellValue(c2[i]);
             int rr=1;
             for (var s : subj) {
@@ -96,13 +107,15 @@ public class ReconciliationService {
                 x.createCell(1).setCellValue(s.needed());
                 x.createCell(2).setCellValue(s.available());
                 x.createCell(3).setCellValue(s.deficit());
+                x.createCell(4).setCellValue(s.suufTotal());
+                x.createCell(5).setCellValue(s.meshTotal());
             }
 
             // Итоги по параллелям
             var gr = summarize(rows, r0 -> String.valueOf(r0.grade()));
             var s3 = wb.createSheet("Итоги по параллелям");
             var h3 = s3.createRow(0);
-            String[] c3 = {"Параллель","Нужно","Есть","Дефицит"};
+            String[] c3 = {"Параллель","Нужно","Есть","Дефицит","СУУФ","МЭШ"};
             for (int i=0;i<c3.length;i++) h3.createCell(i).setCellValue(c3[i]);
             rr=1;
             for (var s : gr) {
@@ -111,6 +124,8 @@ public class ReconciliationService {
                 x.createCell(1).setCellValue(s.needed());
                 x.createCell(2).setCellValue(s.available());
                 x.createCell(3).setCellValue(s.deficit());
+                x.createCell(4).setCellValue(s.suufTotal());
+                x.createCell(5).setCellValue(s.meshTotal());
             }
 
             var out = new ByteArrayOutputStream();

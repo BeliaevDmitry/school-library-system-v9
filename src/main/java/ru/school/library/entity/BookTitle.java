@@ -30,4 +30,7 @@ public class BookTitle {
 
     @Column(nullable = false)
     private Integer grade;
+
+    @Column(name = "approved_by_order", nullable = false, columnDefinition = "boolean default false")
+    private boolean approvedByOrder;
 }

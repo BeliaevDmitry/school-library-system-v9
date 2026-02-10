@@ -9,6 +9,8 @@ import java.time.LocalDateTime;
 @Getter @Setter
 @Entity
 public class WriteOff {
+    public enum Status { PENDING, APPROVED, REJECTED }
+
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
@@ -28,4 +30,15 @@ public class WriteOff {
 
     @Column(nullable = false)
     private LocalDateTime createdAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private Status status = Status.PENDING;
+
+    @ManyToOne
+    private User reviewedBy;
+
+    private LocalDateTime reviewedAt;
+
+    private String reviewNote;
 }

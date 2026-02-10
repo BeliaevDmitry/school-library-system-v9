@@ -5,6 +5,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import ru.school.library.entity.Stock;
 import ru.school.library.repo.StockRepository;
 import ru.school.library.service.AuthService;
@@ -32,13 +33,15 @@ public class WriteOffController {
     public String submit(Authentication a,
                          @RequestParam Long stockId,
                          @RequestParam int count,
-                         @RequestParam(required = false) String reason) {
+                         @RequestParam(required = false) String reason,
+                         RedirectAttributes ra) {
         var u = auth.requireUser(a.getName());
         Stock st = stocks.findById(stockId).orElseThrow();
         if (!st.getBuilding().getId().equals(u.getBuilding().getId())) {
-            throw new RuntimeException("Нельзя списывать не свой корпус");
+            throw new RuntimeException("Нельзя помечать на списание чужой корпус");
         }
-        writeOffService.writeOff(st.getBuilding(), st.getBookTitle(), count, reason, u);
-        return "redirect:/librarian/stock";
+        writeOffService.requestWriteOff(st.getBuilding(), st.getBookTitle(), count, reason, u);
+        ra.addFlashAttribute("success", "Позиция помечена на списание и отправлена администратору на подтверждение");
+        return "redirect:/librarian/writeoff";
     }
 }

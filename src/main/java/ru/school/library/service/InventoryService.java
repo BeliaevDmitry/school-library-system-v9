@@ -27,7 +27,12 @@ public class InventoryService {
             int inCabinets,
             String note,
             int expectedTotal,
-            int diff
+            int diff,
+            String status,
+            int accuracyPercent,
+            int suufTotal,
+            int meshTotal,
+            boolean approvedByOrder
     ) {}
 
     public List<InventoryRow> forBuilding(Long buildingId) {
@@ -56,6 +61,9 @@ public class InventoryService {
         String title = s.getBookTitle()!=null ? s.getBookTitle().getTitle() : "";
         int expected = s.getAvailable() + s.getIssuedToStudents() + s.getInCabinets();
         int diff = s.getTotal() - expected;
+        String status = diff == 0 ? "OK" : (diff > 0 ? "Излишек" : "Недостача");
+        int accuracyPercent = s.getTotal() <= 0 ? (expected <= 0 ? 100 : 0)
+                : (int) Math.max(0, Math.min(100, Math.round((expected * 100.0f) / s.getTotal())));
         return new InventoryRow(
                 s.getId(),
                 buildingName,
@@ -68,7 +76,12 @@ public class InventoryService {
                 s.getInCabinets(),
                 s.getNote(),
                 expected,
-                diff
+                diff,
+                status,
+                accuracyPercent,
+                s.getSuufTotal(),
+                s.getMeshTotal(),
+                s.getBookTitle() != null && s.getBookTitle().isApprovedByOrder()
         );
     }
 }

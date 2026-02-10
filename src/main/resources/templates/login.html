@@ -4,9 +4,10 @@
     <meta charset="UTF-8"/>
     <title>Вход</title>
     <link rel="stylesheet" th:href="@{/css/app.css}">
-</head>
+<script th:src="@{/js/table-filters.js}" defer></script></head>
 <body>
 <div class="container">
+    <div class="top-back"><a href="#" onclick="history.back(); return false;">← Назад</a></div>
     <h2>Вход</h2>
     <form method="post" th:action="@{/login}">
         <label>Логин</label>

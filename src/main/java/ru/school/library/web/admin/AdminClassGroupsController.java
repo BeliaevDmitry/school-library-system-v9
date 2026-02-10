@@ -2,6 +2,7 @@ package ru.school.library.web.admin;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
@@ -15,6 +16,7 @@ import ru.school.library.repo.ClassGroupRepository;
 import ru.school.library.repo.FutureClassGroupRepository;
 
 import java.util.Comparator;
+import java.util.Locale;
 
 @Controller
 @RequestMapping("/admin/classes")
@@ -52,11 +54,9 @@ public class AdminClassGroupsController {
                        RedirectAttributes ra) {
         try {
             var b = buildings.findById(buildingId).orElseThrow();
-            String l = letter == null ? "" : letter.trim().toUpperCase();
+            String l = letter == null ? "" : letter.trim().toUpperCase(Locale.ROOT);
             // найдём по уникальности building+grade+letter
-            var existing = classes.findByBuilding_Id(buildingId).stream()
-                    .filter(x -> x.getGrade() == grade && (x.getLetter()==null? "" : x.getLetter()).equalsIgnoreCase(l))
-                    .findFirst().orElse(null);
+            var existing = classes.findByBuilding_IdAndGradeAndLetterIgnoreCase(buildingId, grade, l).orElse(null);
 
             ClassGroup cg = existing != null ? existing : new ClassGroup();
             cg.setBuilding(b);
@@ -101,6 +101,84 @@ public class AdminClassGroupsController {
         return "redirect:/admin/classes";
     }
 
+    @PostMapping("/promote")
+    @Transactional
+    public String promote(@RequestParam Long buildingId,
+                          @RequestParam(required = false) Integer academicYear,
+                          Principal principal,
+                          RedirectAttributes ra) {
+        try {
+            var b = buildings.findById(buildingId).orElseThrow();
+            var list = classes.findByBuilding_Id(buildingId);
+            if (list.isEmpty()) {
+                ra.addFlashAttribute("error", "В выбранном корпусе нет классов для перевода");
+                return "redirect:/admin/classes?buildingId=" + buildingId;
+            }
+
+            var actor = users.findByUsername(principal.getName()).orElse(null);
+            int targetAcademicYear = academicYear == null ? java.time.Year.now().getValue() + 1 : academicYear;
+
+            // Текущий контингент не трогаем: формируем/обновляем будущий контингент на следующий учебный год.
+            int promotedToFuture = 0;
+            int graduated = 0;
+
+            for (var oldCg : list) {
+                String oldLetterNormalized = oldCg.getLetter() == null ? "" : oldCg.getLetter().trim().toUpperCase(Locale.ROOT);
+                if (oldCg.getGrade() >= 11) {
+                    graduated++;
+                    var log = new ru.school.library.entity.EnrollmentChangeLog();
+                    log.setTs(OffsetDateTime.now());
+                    log.setActor(actor);
+                    log.setBuilding(b);
+                    log.setScope(ru.school.library.entity.EnrollmentChangeLog.Scope.FUTURE);
+                    log.setAcademicYear(targetAcademicYear);
+                    log.setGrade(oldCg.getGrade());
+                    log.setLetter(oldLetterNormalized);
+                    log.setOldStudents(oldCg.getStudents());
+                    log.setNewStudents(0);
+                    log.setAction(ru.school.library.entity.EnrollmentChangeLog.Action.DELETE);
+                    log.setNote("Годовой перевод в будущий контингент: выпуск из 11 класса");
+                    logs.save(log);
+                    continue;
+                }
+
+                int nextGrade = oldCg.getGrade() + 1;
+                var futureCg = futureClasses
+                        .findByBuilding_IdAndAcademicYearAndGradeAndLetterIgnoreCase(buildingId, targetAcademicYear, nextGrade, oldLetterNormalized)
+                        .orElseGet(ru.school.library.entity.FutureClassGroup::new);
+
+                int oldStudents = futureCg.getId() == null ? 0 : futureCg.getStudents();
+                futureCg.setBuilding(b);
+                futureCg.setAcademicYear(targetAcademicYear);
+                futureCg.setGrade(nextGrade);
+                futureCg.setLetter(oldLetterNormalized);
+                futureCg.setStudents(oldCg.getStudents());
+                futureClasses.save(futureCg);
+                promotedToFuture++;
+
+                var log = new ru.school.library.entity.EnrollmentChangeLog();
+                log.setTs(OffsetDateTime.now());
+                log.setActor(actor);
+                log.setBuilding(b);
+                log.setScope(ru.school.library.entity.EnrollmentChangeLog.Scope.FUTURE);
+                log.setAcademicYear(targetAcademicYear);
+                log.setGrade(futureCg.getGrade());
+                log.setLetter(futureCg.getLetter());
+                log.setOldStudents(oldStudents);
+                log.setNewStudents(futureCg.getStudents());
+                log.setAction(ru.school.library.entity.EnrollmentChangeLog.Action.UPSERT);
+                log.setNote("Годовой перевод в будущий контингент: из " + oldCg.getGrade() + "-" + oldLetterNormalized);
+                logs.save(log);
+            }
+
+            ra.addFlashAttribute("success", "Годовой перевод выполнен. Будущий контингент " + targetAcademicYear + "/" + (targetAcademicYear + 1)
+                    + " обновлён: переведено классов " + promotedToFuture + ", выпущено 11-х классов: " + graduated + ". Текущий контингент не изменён.");
+        } catch (Exception e) {
+            ra.addFlashAttribute("error", e.getMessage());
+        }
+        return "redirect:/admin/classes?buildingId=" + buildingId;
+    }
+
     // ===== Будущий контингент =====
 
     @GetMapping("/future")
@@ -133,11 +211,9 @@ public class AdminClassGroupsController {
                              RedirectAttributes ra) {
         try {
             var b = buildings.findById(buildingId).orElseThrow();
-            String l = letter == null ? "" : letter.trim().toUpperCase();
+            String l = letter == null ? "" : letter.trim().toUpperCase(Locale.ROOT);
 
-            var existing = futureClasses.findByBuilding_IdAndAcademicYear(buildingId, academicYear).stream()
-                    .filter(x -> x.getGrade() == grade && (x.getLetter()==null? "" : x.getLetter()).equalsIgnoreCase(l))
-                    .findFirst().orElse(null);
+            var existing = futureClasses.findByBuilding_IdAndAcademicYearAndGradeAndLetterIgnoreCase(buildingId, academicYear, grade, l).orElse(null);
 
             FutureClassGroup cg = existing != null ? existing : new FutureClassGroup();
             cg.setBuilding(b);
@@ -201,90 +277,5 @@ public class AdminClassGroupsController {
         ra.addFlashAttribute("error", "Не найдено");
         return "redirect:/admin/classes/future?academicYear=" + academicYear;
     }
-
-@PostMapping("/bulk")
-public String bulk(@RequestParam Long buildingId,
-                   @RequestParam(required = false) Integer grade,
-                   @RequestParam int delta,
-                   @RequestParam(required = false) String note,
-                   Principal principal,
-                   RedirectAttributes ra) {
-    try {
-        var b = buildings.findById(buildingId).orElseThrow();
-        var list = classes.findByBuilding_Id(buildingId);
-        int affected = 0;
-        for (var cg : list) {
-            if (grade != null && cg.getGrade() != grade) continue;
-            int old = cg.getStudents();
-            int neu = Math.max(0, old + delta);
-            if (neu == old) continue;
-            cg.setStudents(neu);
-            classes.save(cg);
-            affected++;
-
-            var actor = users.findByUsername(principal.getName()).orElse(null);
-            var log = new ru.school.library.entity.EnrollmentChangeLog();
-            log.setTs(OffsetDateTime.now());
-            log.setActor(actor);
-            log.setBuilding(b);
-            log.setScope(ru.school.library.entity.EnrollmentChangeLog.Scope.CURRENT);
-            log.setAcademicYear(0);
-            log.setGrade(cg.getGrade());
-            log.setLetter(cg.getLetter());
-            log.setOldStudents(old);
-            log.setNewStudents(neu);
-            log.setAction(ru.school.library.entity.EnrollmentChangeLog.Action.BULK);
-            log.setNote(note == null ? null : note.trim());
-            logs.save(log);
-        }
-        ra.addFlashAttribute("success", "Массовая правка выполнена. Изменено: " + affected);
-    } catch (Exception e) {
-        ra.addFlashAttribute("error", e.getMessage());
-    }
-    return "redirect:/admin/classes?buildingId=" + buildingId;
-}
-
-@PostMapping("/future/bulk")
-public String bulkFuture(@RequestParam int academicYear,
-                         @RequestParam Long buildingId,
-                         @RequestParam(required = false) Integer grade,
-                         @RequestParam int delta,
-                         @RequestParam(required = false) String note,
-                         Principal principal,
-                         RedirectAttributes ra) {
-    try {
-        var b = buildings.findById(buildingId).orElseThrow();
-        var list = futureClasses.findByBuilding_IdAndAcademicYear(buildingId, academicYear);
-        int affected = 0;
-        for (var cg : list) {
-            if (grade != null && cg.getGrade() != grade) continue;
-            int old = cg.getStudents();
-            int neu = Math.max(0, old + delta);
-            if (neu == old) continue;
-            cg.setStudents(neu);
-            futureClasses.save(cg);
-            affected++;
-
-            var actor = users.findByUsername(principal.getName()).orElse(null);
-            var log = new ru.school.library.entity.EnrollmentChangeLog();
-            log.setTs(OffsetDateTime.now());
-            log.setActor(actor);
-            log.setBuilding(b);
-            log.setScope(ru.school.library.entity.EnrollmentChangeLog.Scope.FUTURE);
-            log.setAcademicYear(academicYear);
-            log.setGrade(cg.getGrade());
-            log.setLetter(cg.getLetter());
-            log.setOldStudents(old);
-            log.setNewStudents(neu);
-            log.setAction(ru.school.library.entity.EnrollmentChangeLog.Action.BULK);
-            log.setNote(note == null ? null : note.trim());
-            logs.save(log);
-        }
-        ra.addFlashAttribute("success", "Массовая правка выполнена. Изменено: " + affected);
-    } catch (Exception e) {
-        ra.addFlashAttribute("error", e.getMessage());
-    }
-    return "redirect:/admin/classes/future?academicYear=" + academicYear + "&buildingId=" + buildingId;
-}
 
 }

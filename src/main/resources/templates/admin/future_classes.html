@@ -4,9 +4,10 @@
   <meta charset="utf-8"/>
   <title>Будущий контингент</title>
   <link rel="stylesheet" th:href="@{/css/app.css}">
-</head>
+<script th:src="@{/js/table-filters.js}" defer></script></head>
 <body>
 <div class="container">
+  <div class="top-back"><a th:href="@{/admin/dashboard}">← Назад</a></div>
   <h2>Будущий контингент</h2>
 
   <div class="card" th:if="${error}">
@@ -54,20 +55,6 @@
       </form>
     </div>
 
-    <div class="card">
-      <h3>Массовая правка</h3>
-      <form method="post" th:action="@{/admin/classes/future/bulk}">
-        <input type="hidden" name="buildingId" th:value="${buildingId}"/>
-        <input type="hidden" name="academicYear" th:value="${academicYear}"/>
-        <label>Параллель (пусто = все)</label>
-        <input type="number" name="grade" min="1" max="11" style="width:120px"/>
-        <label>Delta (например +1 или -2)</label>
-        <input type="number" name="delta" required style="width:120px"/>
-        <label>Комментарий</label>
-        <input type="text" name="note" style="width:240px"/>
-        <button type="submit">Применить</button>
-      </form>
-    </div>
 
     <div class="card">
       <h3>Список классов</h3>
