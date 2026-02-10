@@ -4,20 +4,26 @@
   <meta charset="utf-8"/>
   <title>Инвентаризация</title>
   <link rel="stylesheet" th:href="@{/css/app.css}">
-</head>
+<script th:src="@{/js/table-filters.js}" defer></script></head>
 <body>
 <div class="container">
   <div class="top-back"><a th:href="@{/librarian/dashboard}">← Назад</a></div>
   <h2>Инвентаризация (мой корпус)</h2>
   <p class="muted">Проверка: всего ?= свободно + выдано + в кабинетах. Несовпадения подсвечены.</p>
   <div class="card">
+    <h3>Быстрый контроль</h3>
+    <input id="inventoryFilter" type="text" placeholder="Поиск по предмету, параллели или названию"/>
+    <p class="muted" id="inventoryCounter"></p>
+  </div>
+  <div class="card">
     <p th:text="${'Проблемных строк: ' + problems}"></p>
     <table>
       <tr>
         <th>Параллель</th><th>Предмет</th><th>Учебник</th>
-        <th>Всего</th><th>Свободно</th><th>Выдано</th><th>В кабинетах</th><th>Ожидаемо</th><th>Разница</th><th>Примечание</th>
+        <th>Всего</th><th>Свободно</th><th>Выдано</th><th>В кабинетах</th><th>Ожидаемо</th><th>Разница</th><th>Статус</th><th>Точность</th><th>Разрешён приказом</th><th>Примечание</th>
       </tr>
-      <tr th:each="r : ${rows}" th:classappend="${r.diff != 0} ? 'warn' : ''">
+      <tr th:each="r : ${rows}" class="inv-row" th:classappend="${r.diff != 0} ? 'warn' : ''"
+          th:attr="data-search=${(r.grade + ' ' + r.subject + ' ' + r.title).toLowerCase()}">
         <td th:text="${r.grade}"></td>
         <td th:text="${r.subject}"></td>
         <td th:text="${r.title}"></td>
@@ -27,11 +33,36 @@
         <td th:text="${r.inCabinets}"></td>
         <td th:text="${r.expectedTotal}"></td>
         <td th:text="${r.diff}"></td>
+        <td th:text="${r.status}"></td>
+        <td th:text="${r.accuracyPercent + '%'}"></td>
+        <td th:text="${r.approvedByOrder ? 'Да' : 'Нет'}"></td>
         <td th:text="${r.note}"></td>
       </tr>
     </table>
   </div>
   <p><a th:href="@{/librarian/dashboard}">← Назад</a></p>
 </div>
+<script>
+  (function () {
+    const filter = document.getElementById('inventoryFilter');
+    const rows = Array.from(document.querySelectorAll('.inv-row'));
+    const counter = document.getElementById('inventoryCounter');
+    function refresh() {
+      const visible = rows.filter(r => r.style.display !== 'none').length;
+      counter.textContent = 'Показано: ' + visible + ' из ' + rows.length;
+    }
+    if (filter) {
+      filter.addEventListener('input', function () {
+        const q = (this.value || '').trim().toLowerCase();
+        rows.forEach(r => {
+          const hay = r.getAttribute('data-search') || '';
+          r.style.display = !q || hay.includes(q) ? '' : 'none';
+        });
+        refresh();
+      });
+      refresh();
+    }
+  })();
+</script>
 </body>
 </html>

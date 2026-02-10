@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
-<head><meta charset="UTF-8"/><title>Админ</title><link rel="stylesheet" th:href="@{/css/app.css}"></head>
+<head><meta charset="UTF-8"/><title>Админ</title><link rel="stylesheet" th:href="@{/css/app.css}"><script th:src="@{/js/table-filters.js}" defer></script></head>
 <body>
 <div class="container">
+  <div class="top-back"><a href="#" onclick="history.back(); return false;">← Назад</a></div>
   <h2>Админ-панель</h2>
 
   <div class="card" th:if="${error}">
@@ -14,7 +15,24 @@
     <p th:text="${success}"></p>
   </div>
 
-  <p><a class="btn" th:href="@{/admin/planning}">Планирование закупки (будущий контингент)</a> <a class="btn" th:href="@{/admin/inventory}">Сводная инвентаризация</a> <a class="btn" th:href="@{/admin/classes}">Численность (редактирование)</a></p>
+  <div class="actions">
+    <a class="btn" th:href="@{/admin/planning}">Планирование закупки (будущий контингент)</a>
+    <a class="btn" th:href="@{/admin/inventory}">Сводная инвентаризация</a>
+    <a class="btn" th:href="@{/admin/classes}">Численность (редактирование)</a>
+  </div>
+  <div class="card">
+    <h3>Сводка фонда</h3>
+    <p><b>Всего позиций:</b> <span th:text="${totalPositions}"></span></p>
+    <p><b>Всего экземпляров:</b> <span th:text="${totalBooks}"></span></p>
+    <table>
+      <tr><th>Корпус</th><th>Позиции</th><th>Экземпляры</th></tr>
+      <tr th:each="r : ${stockByBuilding}">
+        <td th:text="${r.name + ' (код ' + r.code + ')'}"></td>
+        <td th:text="${r.positions}"></td>
+        <td th:text="${r.books}"></td>
+      </tr>
+    </table>
+  </div>
   <div class="grid">
     <div class="card">
       <h3>Импорт данных</h3>

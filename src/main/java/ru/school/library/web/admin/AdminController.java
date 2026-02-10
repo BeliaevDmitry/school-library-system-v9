@@ -78,6 +78,15 @@ public class AdminController {
         return "redirect:/admin/import";
     }
 
+    @PostMapping("/import/legacy-to-mesh")
+    public ResponseEntity<byte[]> convertLegacyToMesh(@RequestParam("file") MultipartFile file,
+                                                      @RequestParam("buildingCode") String buildingCode) throws Exception {
+        byte[] bytes = excel.convertLegacyToMesh(file, buildingCode);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=suuf_to_mesh.xlsx")
+                .body(bytes);
+    }
+
     @PostMapping("/import/curriculum")
     public String importCurriculum(@RequestParam("file") MultipartFile file,
                                    RedirectAttributes ra) {

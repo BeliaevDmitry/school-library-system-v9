@@ -4,7 +4,7 @@
   <meta charset="utf-8"/>
   <title>Сводная инвентаризация</title>
   <link rel="stylesheet" th:href="@{/css/app.css}">
-</head>
+<script th:src="@{/js/table-filters.js}" defer></script></head>
 <body>
 <div class="container">
   <div class="top-back"><a th:href="@{/admin/dashboard}">← Назад</a></div>
@@ -15,7 +15,7 @@
     <table>
       <tr>
         <th>Корпус</th><th>Параллель</th><th>Предмет</th><th>Учебник</th>
-        <th>Всего</th><th>Свободно</th><th>Выдано</th><th>В кабинетах</th><th>Ожидаемо</th><th>Разница</th><th>Примечание</th>
+        <th>Всего</th><th>Свободно</th><th>Выдано</th><th>В кабинетах</th><th>Ожидаемо</th><th>Разница</th><th>СУУФ</th><th>МЭШ</th><th>Разрешён приказом</th><th>Примечание</th>
       </tr>
       <tr th:each="r : ${rows}" th:classappend="${r.diff != 0} ? 'warn' : ''">
         <td th:text="${r.buildingName}"></td>
@@ -28,6 +28,17 @@
         <td th:text="${r.inCabinets}"></td>
         <td th:text="${r.expectedTotal}"></td>
         <td th:text="${r.diff}"></td>
+        <td th:text="${r.suufTotal}"></td>
+        <td th:text="${r.meshTotal}"></td>
+        <td>
+          <form th:action="@{'/admin/stocks/' + ${r.stockId} + '/approval'}" method="post" style="display:flex; gap:8px; align-items:center;">
+            <select name="approvedByOrder">
+              <option value="true" th:selected="${r.approvedByOrder}">Да</option>
+              <option value="false" th:selected="${!r.approvedByOrder}">Нет</option>
+            </select>
+            <button type="submit">Сохранить</button>
+          </form>
+        </td>
         <td th:text="${r.note}"></td>
       </tr>
     </table>

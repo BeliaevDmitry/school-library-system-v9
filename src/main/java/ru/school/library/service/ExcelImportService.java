@@ -2,6 +2,7 @@ package ru.school.library.service;
 
 import lombok.RequiredArgsConstructor;
 import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import ru.school.library.entity.*;
@@ -93,6 +94,8 @@ public class ExcelImportService {
                     st.setTotal(Math.max(0, total));
                     st.setAvailable(Math.max(0, available));
                     st.setInUse(Math.max(0, inUse));
+                    // Это инвентаризационные остатки от библиотекаря, а не импорт официальных
+                    // срезов МЭШ/СУУФ. Не перезаписываем source-поля meshTotal/suufTotal.
                     stocks.save(st);
                     processed++;
                 } catch (Exception ex) {
@@ -186,6 +189,7 @@ public void importRegistry(MultipartFile file, String buildingCode) throws Excep
                         st.setTotal(totalPart);
                         st.setAvailable(availablePart);
                         st.setInUse(inUsePart);
+                        st.setMeshTotal(totalPart);
                         stocks.save(st);
                     }
 
@@ -248,6 +252,7 @@ public void importRegistry(MultipartFile file, String buildingCode) throws Excep
                     st.setTotal(total);
                     st.setAvailable(available);
                     st.setInUse(inUse);
+                    st.setMeshTotal(total);
                     stocks.save(st);
 
                     processed++;
@@ -341,16 +346,25 @@ private int parseGrade(String raw) {
 
 private int parseInt(String raw) {
     if (raw == null) return 0;
-    String s = raw.trim();
+    String s = normalizeNumber(raw);
     if (s.isBlank()) return 0;
-    return (int) Double.parseDouble(s.replace(",", "."));
+    return (int) Double.parseDouble(s);
 }
 
 private Integer parseIntNullable(String raw) {
     if (raw == null) return null;
-    String s = raw.trim();
+    String s = normalizeNumber(raw);
     if (s.isBlank()) return null;
-    return (int) Double.parseDouble(s.replace(",", "."));
+    return (int) Double.parseDouble(s);
+}
+
+private String normalizeNumber(String raw) {
+    if (raw == null) return "";
+    return raw
+            .replace('\u00A0', ' ')
+            .replace(" ", "")
+            .replace(",", ".")
+            .trim();
 }
 
 
@@ -409,6 +423,64 @@ private int splitPart(int total, int parts, int idx) {
     int remainder = Math.floorMod(total, parts);
     return idx < remainder ? base + 1 : base;
 }
+
+
+private BookTitle findOrCreateMeshTitle(String fpu, int grade, Subject subject, String title, String authors, String publisher, Integer year, boolean splitByYears) {
+    String externalKey = fpu == null ? null : fpu.trim();
+    String effectiveKey = externalKey;
+    if (splitByYears && externalKey != null && !externalKey.isBlank() && year != null) {
+        effectiveKey = externalKey + "#" + year;
+    }
+    BookTitle bt = null;
+    if (effectiveKey != null && !effectiveKey.isBlank()) {
+        bt = bookTitles.findByExternalKeyAndGradeAndSubject_Id(effectiveKey, grade, subject.getId()).orElse(null);
+    }
+    if (bt == null) {
+        bt = new BookTitle();
+        bt.setExternalKey(effectiveKey);
+        bt.setGrade(grade);
+        bt.setSubject(subject);
+        bt.setTitle(title);
+        bt.setAuthors(authors);
+        bt.setPublisher(publisher);
+        bt.setYear(year);
+        bt.setIsbn(null);
+        return bookTitles.save(bt);
+    }
+    bt.setTitle(title);
+    bt.setAuthors(authors);
+    bt.setPublisher(publisher);
+    bt.setYear(year);
+    return bookTitles.save(bt);
+}
+
+private List<Integer> parseYearCandidates(String raw) {
+    if (raw == null || raw.isBlank()) {
+        List<Integer> single = new ArrayList<>();
+        single.add(null);
+        return single;
+    }
+    List<Integer> years = new ArrayList<>();
+    java.util.regex.Matcher m = java.util.regex.Pattern.compile("(19\\d{2}|20\\d{2})").matcher(raw);
+    while (m.find()) {
+        int y = Integer.parseInt(m.group(1));
+        if (!years.contains(y)) years.add(y);
+    }
+    if (years.isEmpty()) {
+        List<Integer> single = new ArrayList<>();
+        single.add(parseIntNullable(raw));
+        return single;
+    }
+    return years;
+}
+
+private int splitPart(int total, int parts, int idx) {
+    if (parts <= 1) return total;
+    int base = total / parts;
+    int remainder = Math.floorMod(total, parts);
+    return idx < remainder ? base + 1 : base;
+}
+
 
 
 
@@ -493,6 +565,7 @@ public void importLegacyRegistry(MultipartFile file, String buildingCode) throws
                 st.setTotal(total);
                 st.setAvailable(available);
                 st.setInUse(inUse);
+                st.setSuufTotal(total);
                 stocks.save(st);
 
                 processed++;
@@ -507,6 +580,70 @@ public void importLegacyRegistry(MultipartFile file, String buildingCode) throws
         }
     }
 }
+
+public byte[] convertLegacyToMesh(MultipartFile file, String buildingCode) throws Exception {
+    try (Workbook src = WorkbookFactory.create(file.getInputStream()); XSSFWorkbook outWb = new XSSFWorkbook()) {
+        Sheet sh = src.getSheetAt(0);
+
+        int headerRowIdx = -1;
+        for (int i = 0; i <= Math.min(30, sh.getLastRowNum()); i++) {
+            Row r = sh.getRow(i);
+            if (r == null) continue;
+            String c0 = cellString(r,0).toLowerCase();
+            String c1 = cellString(r,1).toLowerCase();
+            if (c0.contains("паралл") && c1.contains("наимен")) { headerRowIdx = i; break; }
+        }
+        if (headerRowIdx < 0) throw new RuntimeException("Не найден заголовок старого реестра для конвертации");
+
+        Building building = buildings.findByCode(normalizeBuildingCode(buildingCode))
+                .orElseThrow(() -> new RuntimeException("Unknown building code: " + buildingCode));
+
+        var outSh = outWb.createSheet("Реестр МЭШ (из СУУФ)");
+        String[] cols = {
+                "Название", "Предмет", "Параллель", "Автор(-ы)", "Издательство", "Год издания", "№ ФПУ",
+                "Общее кол-во экземпляров", "Кол-во свободных экземпляров", "Код корпуса", "Источник"
+        };
+        Row h = outSh.createRow(0);
+        for (int i = 0; i < cols.length; i++) {
+            h.createCell(i).setCellValue(cols[i]);
+            outSh.setColumnWidth(i, Math.max(12, cols[i].length() + 2) * 256);
+        }
+
+        int outR = 1;
+        for (int rIdx = headerRowIdx + 1; rIdx <= sh.getLastRowNum(); rIdx++) {
+            Row r = sh.getRow(rIdx);
+            if (r == null) continue;
+
+            String gradeRaw = cellString(r,0);
+            String title = cellString(r,1);
+            String subject = cellString(r,2);
+            String publisher = cellString(r,3);
+            String qtyRaw = cellString(r,7);
+
+            if ((title == null || title.isBlank()) && (gradeRaw == null || gradeRaw.isBlank())) continue;
+
+            int grade = parseGrade(gradeRaw);
+            int total = parseInt(qtyRaw);
+            Row o = outSh.createRow(outR++);
+            o.createCell(0).setCellValue(title == null ? "" : title);
+            o.createCell(1).setCellValue(subject == null ? "" : subject);
+            o.createCell(2).setCellValue(grade);
+            o.createCell(3).setCellValue("");
+            o.createCell(4).setCellValue(publisher == null ? "" : publisher);
+            o.createCell(5).setCellValue("");
+            o.createCell(6).setCellValue("");
+            o.createCell(7).setCellValue(total);
+            o.createCell(8).setCellValue(total);
+            o.createCell(9).setCellValue(building.getCode());
+            o.createCell(10).setCellValue("СУУФ");
+        }
+
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        outWb.write(out);
+        return out.toByteArray();
+    }
+}
+
 public void importCurriculum(MultipartFile file) throws Exception {
         try (Workbook wb = WorkbookFactory.create(file.getInputStream())) {
             Sheet sh = wb.getSheetAt(0);

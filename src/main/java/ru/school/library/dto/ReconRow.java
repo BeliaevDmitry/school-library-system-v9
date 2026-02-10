@@ -7,5 +7,8 @@ public record ReconRow(
         String title,
         int needed,
         int available,
-        int deficit
+        int deficit,
+        int suufTotal,
+        int meshTotal,
+        boolean approvedByOrder
 ) {}

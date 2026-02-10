@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
-<head><meta charset="UTF-8"/><title>Остатки</title><link rel="stylesheet" th:href="@{/css/app.css}"></head>
+<head><meta charset="UTF-8"/><title>Остатки</title><link rel="stylesheet" th:href="@{/css/app.css}"><script th:src="@{/js/table-filters.js}" defer></script></head>
 <body>
 <div class="container">
   <div class="top-back"><a th:href="@{/librarian/dashboard}">← Назад</a></div>
@@ -22,7 +22,12 @@
 
   <div class="card">
     <h3>Загрузка остатков из Excel</h3>
-    <p class="muted">Шаблон на русском: <a th:href="@{/librarian/templates/stock.xlsx}">скачать</a></p>
+    <p class="muted">
+      1) <a th:href="@{/librarian/templates/stock.xlsx}">Скачать список всех книг (для инвентаризации)</a><br/>
+      2) Заполнить колонки «Всего / Свободно / В использовании»<br/>
+      3) Загрузить файл обратно в систему.
+    </p>
+    <p class="muted">Пустой шаблон (если нужно начать с нуля): <a th:href="@{/librarian/templates/stock-empty.xlsx}">скачать</a></p>
     <form method="post" th:action="@{/librarian/import/stock}" enctype="multipart/form-data">
       <input type="file" name="file" accept=".xlsx" required/>
       <button type="submit">Загрузить файл</button>
@@ -40,11 +45,33 @@
       <label>Издательство</label><input name="publisher"/>
       <label>Год издания</label><input type="number" name="year" min="1900" max="2100"/>
       <label>ISBN</label><input name="isbn"/>
+      <label>Разрешён приказом</label>
+      <select name="approvedByOrder">
+        <option value="true">Да</option>
+        <option value="false" selected>Нет</option>
+      </select>
       <label>Всего</label><input type="number" id="addTotal" name="total" min="0" value="0"/>
       <label>Свободно</label><input type="number" id="addAvailable" name="available" min="0" value="0"/>
       <label>В использовании</label><input type="number" id="addInUse" name="inUse" min="0" value="0"/>
       <button type="button" class="full" id="calcInUseBtn">Рассчитать в использовании</button>
       <button type="submit" class="full">Добавить / обновить</button>
+    </form>
+  </div>
+
+
+  <div class="card">
+    <h3>Добавить из списка учебников</h3>
+    <form method="post" th:action="@{/librarian/stocks/add-from-title}" class="form-grid">
+      <label class="full">Учебник из общего списка</label>
+      <select name="bookTitleId" class="full" required>
+        <option value="" disabled selected>Выберите учебник</option>
+        <option th:each="bt : ${bookTitles}" th:value="${bt.id}"
+                th:text="${bt.subject.name + ' — ' + bt.grade + ' кл — ' + bt.title + (bt.year != null ? ' (' + bt.year + ')' : '')}"></option>
+      </select>
+      <label>Всего</label><input type="number" name="total" min="0" value="0"/>
+      <label>Свободно</label><input type="number" name="available" min="0" value="0"/>
+      <label>В использовании</label><input type="number" name="inUse" min="0" value="0"/>
+      <button type="submit" class="full">Добавить из списка</button>
     </form>
   </div>
 
@@ -59,7 +86,7 @@
     <tr>
       <th>Предмет</th><th>Параллель</th><th>Учебник</th>
       <th>Всего</th><th>Доступно</th><th>В использовании</th>
-      <th>Выдано</th><th>В кабинетах</th><th>Примечание</th><th></th>
+      <th>Выдано</th><th>В кабинетах</th><th>Примечание</th><th>Разрешён приказом</th><th></th>
     </tr>
     </thead>
     <tbody>
@@ -71,7 +98,16 @@
         <td th:text="${s.total}"></td>
         <td th:text="${s.available}"></td>
         <td th:text="${s.inUse}"></td>
-        <td colspan="4">
+        <td colspan="3">
+          <form th:action="@{'/librarian/stocks/' + ${s.id} + '/counts'}" method="post" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:6px">
+            <label class="muted">Всего</label>
+            <input type="number" name="total" min="0" style="width:90px" th:value="${s.total}"/>
+            <label class="muted">Свободно</label>
+            <input type="number" name="available" min="0" style="width:90px" th:value="${s.available}"/>
+            <label class="muted">В использовании</label>
+            <input type="number" name="inUse" min="0" style="width:90px" th:value="${s.inUse}"/>
+            <button type="submit">Сохранить количество</button>
+          </form>
           <form th:action="@{'/librarian/stocks/' + ${s.id} + '/extra'}" method="post" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap">
             <label class="muted">Выдано</label>
             <input type="number" name="issuedToStudents" min="0" style="width:90px" th:value="${s.issuedToStudents}"/>
@@ -79,9 +115,19 @@
             <input type="number" name="inCabinets" min="0" style="width:90px" th:value="${s.inCabinets}"/>
             <label class="muted">Примечание</label>
             <input type="text" name="note" style="min-width:240px" th:value="${s.note}"/>
+            <button type="submit">Сохранить примечание</button>
+          </form>
+        </td>
+        <td>
+          <form th:action="@{'/librarian/stocks/' + ${s.id} + '/approval'}" method="post" style="display:flex; gap:8px; align-items:center">
+            <select name="approvedByOrder">
+              <option value="true" th:selected="${s.bookTitle.approvedByOrder}">Да</option>
+              <option value="false" th:selected="${!s.bookTitle.approvedByOrder}">Нет</option>
+            </select>
             <button type="submit">Сохранить</button>
           </form>
         </td>
+        <td></td>
       </tr>
     </tbody>
   </table>

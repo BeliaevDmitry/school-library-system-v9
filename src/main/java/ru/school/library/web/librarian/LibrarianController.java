@@ -51,6 +51,11 @@ public class LibrarianController {
         var list = stocks.findByBuilding_Id(u.getBuilding().getId());
         model.addAttribute("building", u.getBuilding());
         model.addAttribute("stocks", list);
+        model.addAttribute("bookTitles", bookTitles.findAll().stream()
+                .sorted(java.util.Comparator.comparing((BookTitle bt) -> bt.getSubject().getName(), String.CASE_INSENSITIVE_ORDER)
+                        .thenComparing(BookTitle::getGrade)
+                        .thenComparing(BookTitle::getTitle, String.CASE_INSENSITIVE_ORDER))
+                .toList());
         return "librarian/stock";
     }
 
@@ -115,6 +120,78 @@ public class LibrarianController {
         return "librarian/inventory";
     }
 
+
+    @PostMapping("/stocks/{id}/counts")
+    public String updateStockCounts(@PathVariable Long id,
+                                    @RequestParam(defaultValue = "0") int total,
+                                    @RequestParam(defaultValue = "0") int available,
+                                    @RequestParam(defaultValue = "0") int inUse,
+                                    Authentication a,
+                                    RedirectAttributes ra) {
+        User u = auth.requireUser(a.getName());
+        Stock st = stocks.findById(id).orElseThrow();
+
+        if (u.getRole() == User.Role.LIBRARIAN
+                && (u.getBuilding() == null || !u.getBuilding().getId().equals(st.getBuilding().getId()))) {
+            ra.addFlashAttribute("error", "Нет доступа к чужому корпусу");
+            return "redirect:/librarian/stock";
+        }
+
+        st.setTotal(Math.max(0, total));
+        st.setAvailable(Math.max(0, available));
+        st.setInUse(Math.max(0, inUse));
+        stocks.save(st);
+
+        ra.addFlashAttribute("success", "Количество экземпляров обновлено");
+        return "redirect:/librarian/stock";
+    }
+
+    @PostMapping("/stocks/{id}/approval")
+    public String updateStockApproval(@PathVariable Long id,
+                                      @RequestParam(defaultValue = "false") boolean approvedByOrder,
+                                      Authentication a,
+                                      RedirectAttributes ra) {
+        User u = auth.requireUser(a.getName());
+        Stock st = stocks.findById(id).orElseThrow();
+
+        if (u.getRole() == User.Role.LIBRARIAN
+                && (u.getBuilding() == null || !u.getBuilding().getId().equals(st.getBuilding().getId()))) {
+            ra.addFlashAttribute("error", "Нет доступа к чужому корпусу");
+            return "redirect:/librarian/stock";
+        }
+
+        if (st.getBookTitle() != null) {
+            st.getBookTitle().setApprovedByOrder(approvedByOrder);
+            bookTitles.save(st.getBookTitle());
+            ra.addFlashAttribute("success", "Статус «разрешён приказом» обновлён");
+        }
+        return "redirect:/librarian/stock";
+    }
+
+    @PostMapping("/stocks/add-from-title")
+    public String addFromTitle(Authentication a,
+                               @RequestParam Long bookTitleId,
+                               @RequestParam(defaultValue = "0") int total,
+                               @RequestParam(defaultValue = "0") int available,
+                               @RequestParam(defaultValue = "0") int inUse,
+                               RedirectAttributes ra) {
+        try {
+            var u = auth.requireUser(a.getName());
+            BookTitle bt = bookTitles.findById(bookTitleId).orElseThrow();
+            Stock st = stocks.findOne(u.getBuilding().getId(), bt.getId()).orElseGet(Stock::new);
+            st.setBuilding(u.getBuilding());
+            st.setBookTitle(bt);
+            st.setTotal(Math.max(0, total));
+            st.setAvailable(Math.max(0, available));
+            st.setInUse(Math.max(0, inUse));
+            stocks.save(st);
+            ra.addFlashAttribute("success", "Книга добавлена из списка");
+        } catch (Exception e) {
+            ra.addFlashAttribute("error", e.getMessage());
+        }
+        return "redirect:/librarian/stock";
+    }
+
     @PostMapping("/import/stock")
     public String importStock(@RequestParam("file") MultipartFile file,
                               Authentication a,
@@ -138,6 +215,7 @@ public class LibrarianController {
                            @RequestParam(required = false) String publisher,
                            @RequestParam(required = false) Integer year,
                            @RequestParam(required = false) String isbn,
+                           @RequestParam(defaultValue = "false") boolean approvedByOrder,
                            @RequestParam(defaultValue = "0") int total,
                            @RequestParam(defaultValue = "0") int available,
                            @RequestParam(defaultValue = "0") int inUse,
@@ -168,6 +246,7 @@ public class LibrarianController {
             bt.setPublisher(publisher);
             bt.setYear(year);
             bt.setIsbn(isbn == null || isbn.isBlank() ? null : isbn.trim());
+            bt.setApprovedByOrder(approvedByOrder);
             bt = bookTitles.save(bt);
 
             Stock st = stocks.findOne(u.getBuilding().getId(), bt.getId()).orElseGet(Stock::new);
@@ -186,7 +265,50 @@ public class LibrarianController {
     }
 
     @GetMapping("/templates/stock.xlsx")
-    public ResponseEntity<byte[]> stockTemplate() throws Exception {
+    public ResponseEntity<byte[]> stockTemplate(Authentication a) throws Exception {
+        var u = auth.requireUser(a.getName());
+        XSSFWorkbook wb = new XSSFWorkbook();
+        var sh = wb.createSheet("Остатки");
+        var h = sh.createRow(0);
+        String[] cols = {"Предмет", "Параллель", "Название", "Авторы", "Издательство", "Год издания", "ISBN", "Всего", "Свободно", "В использовании"};
+        for (int i = 0; i < cols.length; i++) {
+            h.createCell(i).setCellValue(cols[i]);
+            sh.setColumnWidth(i, Math.max(12, cols[i].length() + 2) * 256);
+        }
+
+        int r = 1;
+        var sortedTitles = bookTitles.findAll().stream()
+                .sorted(java.util.Comparator.comparing((BookTitle bt) -> bt.getSubject().getName(), String.CASE_INSENSITIVE_ORDER)
+                        .thenComparing(BookTitle::getGrade)
+                        .thenComparing(BookTitle::getTitle, String.CASE_INSENSITIVE_ORDER))
+                .toList();
+        for (var bt : sortedTitles) {
+            var row = sh.createRow(r++);
+            var st = stocks.findOne(u.getBuilding().getId(), bt.getId()).orElse(null);
+
+            row.createCell(0).setCellValue(bt.getSubject() != null ? bt.getSubject().getName() : "");
+            row.createCell(1).setCellValue(bt.getGrade() == null ? 0 : bt.getGrade());
+            row.createCell(2).setCellValue(bt.getTitle() == null ? "" : bt.getTitle());
+            row.createCell(3).setCellValue(bt.getAuthors() == null ? "" : bt.getAuthors());
+            row.createCell(4).setCellValue(bt.getPublisher() == null ? "" : bt.getPublisher());
+            if (bt.getYear() != null) row.createCell(5).setCellValue(bt.getYear());
+            row.createCell(6).setCellValue(bt.getIsbn() == null ? "" : bt.getIsbn());
+            row.createCell(7).setCellValue(st == null ? 0 : st.getTotal());
+            row.createCell(8).setCellValue(st == null ? 0 : st.getAvailable());
+            row.createCell(9).setCellValue(st == null ? 0 : st.getInUse());
+        }
+
+        try (wb) {
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            wb.write(out);
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=books_for_inventory.xlsx")
+                    .body(out.toByteArray());
+        }
+    }
+
+    @GetMapping("/templates/stock-empty.xlsx")
+    public ResponseEntity<byte[]> stockEmptyTemplate() throws Exception {
         XSSFWorkbook wb = new XSSFWorkbook();
         var sh = wb.createSheet("Остатки");
         var h = sh.createRow(0);
@@ -199,7 +321,7 @@ public class LibrarianController {
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             wb.write(out);
             return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=template_librarian_stock.xlsx")
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=template_librarian_stock_empty.xlsx")
                     .body(out.toByteArray());
         }
     }
